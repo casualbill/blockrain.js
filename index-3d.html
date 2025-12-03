@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D BlockRain - Tetris Game</title>
+    <link rel="stylesheet" href="src/blockrain.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        h1 {
+            color: white;
+            font-size: 3rem;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .game-wrapper {
+            width: 100%;
+            max-width: 600px;
+            height: 80vh;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        
+        .blockrain-game-holder {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .controls-info {
+            color: white;
+            margin-top: 20px;
+            text-align: center;
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 10px;
+            max-width: 600px;
+        }
+        
+        .controls-info h3 {
+            margin-top: 0;
+            color: #4CAF50;
+        }
+        
+        .controls-info p {
+            margin: 5px 0;
+            font-size: 0.9rem;
+        }
+        
+        .control-key {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin: 0 5px;
+            min-width: 20px;
+            text-align: center;
+        }
+        
+        .mode-selector {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .mode-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .mode-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .mode-btn.active {
+            background: rgba(76, 175, 80, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 3D BlockRain</h1>
+        
+        <div class="game-wrapper">
+            <div id="blockrain-game"></div>
+        </div>
+        
+        <div class="mode-selector">
+            <button class="mode-btn active" onclick="changeMode('normal')">Normal</button>
+            <button class="mode-btn" onclick="changeMode('nice')">Nice</button>
+            <button class="mode-btn" onclick="changeMode('evil')">Evil</button>
+        </div>
+        
+        <div class="controls-info">
+            <h3>🎯 Controls</h3>
+            <p><span class="control-key">←</span> <span class="control-key">→</span> Move Left/Right</p>
+            <p><span class="control-key">↑</span> <span class="control-key">W</span> Rotate Right</p>
+            <p><span class="control-key">Z</span> Rotate Left</p>
+            <p><span class="control-key">↓</span> <span class="control-key">S</span> Soft Drop</p>
+            <p><span class="control-key">Space</span> Hard Drop</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    <script src="src/blockrain-3d.js"></script>
+    <script>
+        var game;
+        
+        $(document).ready(function() {
+            // Initialize the 3D game
+            game = $('#blockrain-game').blockrain3d({
+                theme: 'retro',
+                speed: 20,
+                difficulty: 'normal',
+                
+                // 3D specific options
+                cameraAngle: 45, // 俯视角
+                cameraDistance: 20, // 相机距离
+                cubeSize: 1.0, // 立方体大小
+                lightDirection: [0.5, 0.5, -1.0], // 光源方向
+                ambientLight: 0.3, // 环境光强度
+                diffuseLight: 0.7, // 漫反射光强度
+                
+                // Callbacks
+                onStart: function() {
+                    console.log('Game started!');
+                },
+                onGameOver: function(score) {
+                    console.log('Game over! Score:', score);
+                },
+                onLine: function(lines, scoreIncrement, score) {
+                    console.log('Lines cleared:', lines, 'Score:', score);
+                }
+            });
+            
+            // Show start message
+            game.blockrain3d('showStartMessage');
+        });
+        
+        function changeMode(mode) {
+            // Update button states
+            $('.mode-btn').removeClass('active');
+            $('button[onclick="changeMode(\'' + mode + '\')"]').addClass('active');
+            
+            // Change game mode
+            if (game) {
+                game.blockrain3d('option', 'difficulty', mode);
+                game.blockrain3d('restart');
+            }
+        }
+        
+        // Add spacebar for hard drop
+        $(document).keydown(function(evt) {
+            if (evt.keyCode === 32 && game && !game.blockrain3d('option', 'autoplay')) {
+                evt.preventDefault();
+                // Hard drop - move the block down as far as possible
+                var board = game.data('blockrain3d')._board;
+                if (board && board.cur) {
+                    while (!game.data('blockrain3d')._checkCollisions(board.cur.x, board.cur.y + 1, board.cur.getBlocks(), true)) {
+                        board.cur.y++;
+                    }
+                    board.renderChanged = true;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
