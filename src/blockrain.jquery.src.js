@@ -199,6 +199,7 @@
     // Canvas
     _canvas: null,
     _ctx: null,
+    _webglRenderer: null,
 
 
     // Initialization
@@ -581,6 +582,9 @@
         check: function(x, y) {
           return this.data[this.asIndex(x, y)];
         },
+        get: function(x, y) {
+          return this.data[this.asIndex(x, y)];
+        },
         add: function(x, y, blockType, blockVariation, blockIndex, blockOrientation) {
           if (x >= 0 && x < game._BLOCK_WIDTH && y >= 0 && y < game._BLOCK_HEIGHT) {
             this.data[this.asIndex(x, y)] = {
@@ -725,7 +729,10 @@
           this.cur = this.nextShape();
 
           if( game.options.showFieldOnStart ) {
-            game._drawBackground();
+            // 只有在2D渲染模式下才绘制背景
+            if (game._ctx) {
+              game._drawBackground();
+            }
             game._board.createRandomBoard();
             game._board.render();
           }
@@ -930,10 +937,18 @@
         render: function(forceRender) {
           if( this.renderChanged || forceRender ) {
             this.renderChanged = false;
+            
+            // 检查是否存在WebGL渲染器
+          if (game._webglRenderer) {
+            // 使用WebGL进行3D渲染
+            game._webglRenderer.render(game._filled, this.cur);
+          } else {
+            // 回退到2D渲染
             game._ctx.clearRect(0, 0, game._PIXEL_WIDTH, game._PIXEL_HEIGHT);
             game._drawBackground();
             game._filled.draw();
             this.cur.draw();
+          }
           }
         },
 
@@ -1200,7 +1215,7 @@
 
       this.element.html('').append(this._$gameholder);
 
-      // Create the game canvas and context
+      // Create the game canvas and WebGL context
       this._$canvas = $('<canvas style="display:block; width:100%; height:100%; padding:0; margin:0; border:none;" />');
       if( typeof this._theme.background === 'string' ) {
         this._$canvas.css('background-color', this._theme.background);
@@ -1208,7 +1223,27 @@
       this._$gameholder.append(this._$canvas);
 
       this._canvas = this._$canvas.get(0);
-      this._ctx = this._canvas.getContext('2d');
+      
+      // 尝试初始化WebGL渲染器
+      if (typeof WebGLRenderer !== 'undefined') {
+        console.log('WebGLRenderer is available, attempting to initialize...');
+        this._webglRenderer = new WebGLRenderer(this._canvas);
+        
+        // 检查WebGL渲染器是否初始化成功
+        if (this._webglRenderer.gl) {
+          console.log('WebGLRenderer initialized successfully!');
+        } else {
+          console.log('WebGLRenderer initialization failed, falling back to 2D rendering...');
+          this._webglRenderer = null;
+        }
+      } else {
+        console.log('WebGLRenderer is not available, falling back to 2D rendering...');
+      }
+      
+      // 如果WebGL渲染器不可用，回退到2D渲染
+      if (!this._webglRenderer) {
+        this._ctx = this._canvas.getContext('2d');
+      }
 
     },
 
