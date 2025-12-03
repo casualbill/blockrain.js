@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlockRain 3D - Tetris Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+        }
+        
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            z-index: 10;
+        }
+        
+        #score {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+        
+        #lines {
+            font-size: 18px;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+        
+        #level {
+            font-size: 18px;
+            opacity: 0.8;
+        }
+        
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            padding: 40px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+            z-index: 20;
+        }
+        
+        #game-over h1 {
+            color: #ff6b6b;
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        
+        #final-score {
+            color: white;
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+        
+        #btn-restart {
+            background: #4ecdc4;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        #btn-restart:hover {
+            background: #45b7aa;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            font-size: 14px;
+            opacity: 0.7;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .control-row {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.3);
+            color: white;
+            font-size: 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .control-btn:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.5);
+        }
+        
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="canvas"></canvas>
+        
+        <div id="ui-overlay">
+            <div id="score">Score: 0</div>
+            <div id="lines">Lines: 0</div>
+            <div id="level">Level: 1</div>
+        </div>
+        
+        <div id="game-over">
+            <h1>GAME OVER</h1>
+            <div id="final-score">Final Score: 0</div>
+            <button id="btn-restart">Play Again</button>
+        </div>
+        
+        <div id="instructions">
+            ← → Move | ↑ Rotate | ↓ Soft Drop | Space Hard Drop
+        </div>
+        
+        <div id="controls">
+            <div class="control-row">
+                <button class="control-btn" id="btn-rotate">↻</button>
+            </div>
+            <div class="control-row">
+                <button class="control-btn" id="btn-left">←</button>
+                <button class="control-btn" id="btn-down">↓</button>
+                <button class="control-btn" id="btn-right">→</button>
+            </div>
+            <div class="control-row">
+                <button class="control-btn" id="btn-hard-drop">⏬</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="src/blockrain-3d.js"></script>
+</body>
+</html>
