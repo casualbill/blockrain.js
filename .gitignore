@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 bower_components/
+.pnpm-store/
 
 # Build outputs
 dist/
