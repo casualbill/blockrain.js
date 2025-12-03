@@ -151,6 +151,17 @@
   <article id="example-slider">
     <div class="example">
       <div class="theme">theme: <strong>"vim"</strong></div>
+      <div class="settings">
+        <div class="setting">
+          <label for="blockWidth">Width: <span id="blockWidthValue">15</span></label>
+          <input type="range" id="blockWidth" min="6" max="30" value="15">
+        </div>
+        <div class="setting">
+          <label for="blockHeight">Height: <span id="blockHeightValue">25</span></label>
+          <input type="range" id="blockHeight" min="10" max="40" value="25">
+        </div>
+        <button id="startGame">Start Game</button>
+      </div>
       <div class="instructions">
         Use only arrows
         <div class="keyboard">
@@ -206,7 +217,7 @@
     speed: 100,
     autoBlockWidth: true,
     autoBlockSize: 25,
-    theme: 'candy'
+    theme: 'candy',
   });
   
 
@@ -236,9 +247,12 @@
   });
 
 
-  var $demo = $('#tetris-demo').blockrain({
+  // Initialize game with default settings
+  var gameSettings = {
     speed: 20,
     theme: 'vim',
+    blockWidth: 15,
+    blockHeight: 25,
     onStart: function() {
       ga( 'send', 'event', 'tetris', 'started');
     },
@@ -248,6 +262,38 @@
     onGameOver: function(score){
       ga( 'send', 'event', 'tetris', 'over', score);
     }
+  };
+
+  var $demo = $('#tetris-demo').blockrain(gameSettings);
+
+  // Setup width slider
+  var $widthSlider = $('#blockWidth');
+  var $widthValue = $('#blockWidthValue');
+
+  $widthSlider.on('input', function() {
+    var value = $(this).val();
+    $widthValue.text(value);
+    gameSettings.blockWidth = parseInt(value);
+  });
+
+  // Setup height slider
+  var $heightSlider = $('#blockHeight');
+  var $heightValue = $('#blockHeightValue');
+
+  $heightSlider.on('input', function() {
+    var value = $(this).val();
+    $heightValue.text(value);
+    gameSettings.blockHeight = parseInt(value);
+  });
+
+  // Setup start button
+  $('#startGame').on('click', function() {
+    // Destroy existing game instance
+    $demo.blockrain('destroy');
+    // Reinitialize game with new settings
+    $demo.blockrain(gameSettings);
+    // Start the game
+    $demo.blockrain('start');
   });
 
   $('#example-slider').find('.btn-next').click(function(event){
