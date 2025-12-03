@@ -31,7 +31,11 @@
       // When a block is placed
       onPlaced: function(){},
       // When a line is made. Returns the number of lines, score assigned and total score
-      onLine: function(lines, scoreIncrement, score){}
+      onLine: function(lines, scoreIncrement, score){},
+
+      // Replay options
+      enableReplay: true, // Enable replay functionality
+      autoSaveReplay: true // Auto save replay when game over
     },
 
 
@@ -52,6 +56,14 @@
       this.showGameOverMessage();
       this._board.gameover = true;
       this.options.onGameOver.call(this.element, this._filled.score);
+
+      // Stop recording replay and save
+      if (this.options.enableReplay && this._replayRecording) {
+        this._stopReplayRecording();
+        if (this.options.autoSaveReplay) {
+          this._saveReplayToHistory();
+        }
+      }
     },
 
     _doStart: function() {
@@ -67,6 +79,11 @@
       this._$start.fadeOut(150);
       this._$gameover.fadeOut(150);
       this._$score.fadeIn(150);
+
+      // Start recording replay
+      if (this.options.enableReplay) {
+        this._startReplayRecording();
+      }
     },
 
 
@@ -194,6 +211,20 @@
     _$gameover: null,
     _$score: null,
     _$scoreText: null,
+    _$replayControls: null,
+    _$replayList: null,
+
+    // Replay functionality
+    _replayRecording: false,
+    _replayData: [],
+    _replayStartTime: null,
+    _replayPlaying: false,
+    _replayPaused: false,
+    _replayCurrentStep: 0,
+    _replaySpeed: 1.0,
+    _replayTimer: null,
+    _replayHistory: [],
+    _replayAutoSaveId: 0,
 
 
     // Canvas
@@ -1219,22 +1250,22 @@
 
       // Score
       game._$score = $(
-        '<div class="blockrain-score-holder" style="position:absolute;">'+
-          '<div class="blockrain-score">'+
-            '<div class="blockrain-score-msg">'+ this.options.scoreText +'</div>'+
-            '<div class="blockrain-score-num">0</div>'+
-          '</div>'+
+        '<div class="blockrain-score-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-score">'+ 
+            '<div class="blockrain-score-msg">'+ this.options.scoreText +'</div>'+ 
+            '<div class="blockrain-score-num">0</div>'+ 
+          '</div>'+ 
         '</div>').hide();
       game._$scoreText = game._$score.find('.blockrain-score-num');
       game._$gameholder.append(game._$score);
 
       // Create the start menu
       game._$start = $(
-        '<div class="blockrain-start-holder" style="position:absolute;">'+
-          '<div class="blockrain-start">'+
-            '<div class="blockrain-start-msg">'+ this.options.playText +'</div>'+
-            '<a class="blockrain-btn blockrain-start-btn">'+ this.options.playButtonText +'</a>'+
-          '</div>'+
+        '<div class="blockrain-start-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-start">'+ 
+            '<div class="blockrain-start-msg">'+ this.options.playText +'</div>'+ 
+            '<a class="blockrain-btn blockrain-start-btn">'+ this.options.playButtonText +'</a>'+ 
+          '</div>'+ 
         '</div>').hide();
       game._$gameholder.append(game._$start);
 
@@ -1245,17 +1276,33 @@
 
       // Create the game over menu
       game._$gameover = $(
-        '<div class="blockrain-game-over-holder" style="position:absolute;">'+
-          '<div class="blockrain-game-over">'+
-            '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+
-            '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+
-          '</div>'+
+        '<div class="blockrain-game-over-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-game-over">'+ 
+            '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+ 
+            '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+ 
+            '<a class="blockrain-btn blockrain-replay-btn" style="margin-left: 10px;">Replay</a>'+ 
+            '<a class="blockrain-btn blockrain-export-replay-btn" style="margin-left: 10px;">Export Replay</a>'+ 
+          '</div>'+ 
         '</div>').hide();
       game._$gameover.find('.blockrain-game-over-btn').click(function(event){
         event.preventDefault();
         game.restart();
       });
+      game._$gameover.find('.blockrain-replay-btn').click(function(event){
+        event.preventDefault();
+        game._replayCurrentStep = 0;
+        game.startReplay(game._replayData);
+      });
+      game._$gameover.find('.blockrain-export-replay-btn').click(function(event){
+        event.preventDefault();
+        game.exportReplay();
+      });
       game._$gameholder.append(game._$gameover);
+
+      // Create replay controls
+      if (this.options.enableReplay) {
+        this._createReplayControls();
+      }
 
       this._createControls();
     },
@@ -1271,6 +1318,62 @@
       game._$touchRotateLeft = $('<a class="blockrain-touch blockrain-touch-rotate-left" />').appendTo(game._$gameholder);
       game._$touchDrop = $('<a class="blockrain-touch blockrain-touch-drop" />').appendTo(game._$gameholder);
 
+    },
+
+    _createReplayControls: function() {
+      var game = this;
+
+      // Replay controls
+      game._$replayControls = $(
+        '<div class="blockrain-replay-controls" style="position:absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: none; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px;">'+ 
+          '<button class="blockrain-replay-play-btn" style="margin: 0 5px; padding: 5px 10px;">Play</button>'+ 
+          '<button class="blockrain-replay-pause-btn" style="margin: 0 5px; padding: 5px 10px;">Pause</button>'+ 
+          '<button class="blockrain-replay-stop-btn" style="margin: 0 5px; padding: 5px 10px;">Stop</button>'+ 
+          '<select class="blockrain-replay-speed-select" style="margin: 0 5px; padding: 5px;">'+ 
+            '<option value="0.5">0.5x</option>'+ 
+            '<option value="1" selected>1x</option>'+ 
+            '<option value="2">2x</option>'+ 
+            '<option value="4">4x</option>'+ 
+          '</select>'+ 
+          '<input type="file" class="blockrain-replay-import-btn" style="margin: 0 5px; display: none;" accept=".json">'+ 
+          '<label for="blockrain-replay-import" style="margin: 0 5px; padding: 5px 10px; background: #4CAF50; color: white; cursor: pointer; border-radius: 3px;">Import</label>'+ 
+          '<button class="blockrain-replay-list-btn" style="margin: 0 5px; padding: 5px 10px;">History</button>'+ 
+        '</div>').hide();
+      game._$gameholder.append(game._$replayControls);
+
+      // Replay list
+      game._$replayList = $(
+        '<div class="blockrain-replay-list" style="position:absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); padding: 20px; border-radius: 10px; display: none; max-height: 400px; overflow-y: auto;">'+ 
+          '<h3 style="color: white; margin-top: 0;">Replay History</h3>'+ 
+          '<div class="blockrain-replay-list-content" style="color: white;"></div>'+ 
+          '<button class="blockrain-replay-list-close" style="margin-top: 10px; padding: 5px 10px;">Close</button>'+ 
+        '</div>').hide();
+      game._$gameholder.append(game._$replayList);
+
+      // Replay control buttons
+      game._$replayControls.find('.blockrain-replay-play-btn').click(function(){
+        game.resumeReplay();
+      });
+      game._$replayControls.find('.blockrain-replay-pause-btn').click(function(){
+        game.pauseReplay();
+      });
+      game._$replayControls.find('.blockrain-replay-stop-btn').click(function(){
+        game.stopReplay();
+      });
+      game._$replayControls.find('.blockrain-replay-speed-select').change(function(){
+        game._replaySpeed = parseFloat($(this).val());
+      });
+      game._$replayControls.find('.blockrain-replay-import-btn').change(function(e){
+        game.importReplay(e);
+      });
+      game._$replayControls.find('.blockrain-replay-list-btn').click(function(){
+        game.showReplayList();
+      });
+
+      // Replay list close button
+      game._$replayList.find('.blockrain-replay-list-close').click(function(){
+        game._$replayList.hide();
+      });
     },
 
 
@@ -1431,6 +1534,10 @@
           game._board.cur.moveLeft(); 
           game._board.holding.left = Date.now();
           game._board.holding.right = null; 
+          // Record move left action
+          if (game._replayRecording) {
+            game._recordReplayAction('moveLeft', {x: game._board.cur.x, y: game._board.cur.y, orientation: game._board.cur.orientation, blockType: game._board.cur.blockType});
+          }
         }
       }
       var moveRight = function(start) {
@@ -1439,6 +1546,10 @@
           game._board.cur.moveRight(); 
           game._board.holding.right = Date.now(); 
           game._board.holding.left = null; 
+          // Record move right action
+          if (game._replayRecording) {
+            game._recordReplayAction('moveRight', {x: game._board.cur.x, y: game._board.cur.y, orientation: game._board.cur.orientation, blockType: game._board.cur.blockType});
+          }
         }
       }
       var drop = function(start) {
@@ -1446,18 +1557,30 @@
         if( ! game._board.holding.drop ) {
           game._board.cur.drop(); 
           game._board.holding.drop = Date.now();
+          // Record drop action
+          if (game._replayRecording) {
+            game._recordReplayAction('drop', {x: game._board.cur.x, y: game._board.cur.y, orientation: game._board.cur.orientation, blockType: game._board.cur.blockType});
+          }
         }
       }
       var rotateLeft = function() {
         game._board.cur.rotate('left'); 
+        // Record rotate left action
+        if (game._replayRecording) {
+          game._recordReplayAction('rotateLeft', {x: game._board.cur.x, y: game._board.cur.y, orientation: game._board.cur.orientation, blockType: game._board.cur.blockType});
+        }
       }
       var rotateRight = function() {
         game._board.cur.rotate('right'); 
+        // Record rotate right action
+        if (game._replayRecording) {
+          game._recordReplayAction('rotateRight', {x: game._board.cur.x, y: game._board.cur.y, orientation: game._board.cur.orientation, blockType: game._board.cur.blockType});
+        }
       }
 
       // Handlers: These are used to be able to bind/unbind controls
       var handleKeyDown = function(evt) {
-        if( ! game._board.cur ) { return true; }
+        if( ! game._board.cur || game._replayPlaying ) { return true; }
         var caught = false;
 
         caught = true;
@@ -1484,7 +1607,7 @@
 
 
       var handleKeyUp = function(evt) {
-        if( ! game._board.cur ) { return true; }
+        if( ! game._board.cur || game._replayPlaying ) { return true; }
         var caught = false;
 
         caught = true;
@@ -1534,7 +1657,7 @@
       $(document) .unbind('keydown.blockrain')
                   .unbind('keyup.blockrain');
 
-      if( ! game.options.autoplay ) {
+      if( ! game.options.autoplay && !game._replayPlaying ) {
         if( enable ) {
           $(document) .bind('keydown.blockrain', keydown)
                       .bind('keyup.blockrain', keyup);
@@ -1554,6 +1677,10 @@
         game._board.holding.left = Date.now();
         game._board.holding.right = null;
         game._board.holding.drop = null;
+        // Record move left action
+        if (game._replayRecording) {
+          game._recordReplayAction('moveLeft', {x: game._board.cur.x, y: game._board.cur.y, orientation: game._board.cur.orientation, blockType: game._board.cur.blockType});
+        }
       };
       var moveRight = function(event){
         event.preventDefault();
@@ -1561,11 +1688,19 @@
         game._board.holding.right = Date.now();
         game._board.holding.left = null;
         game._board.holding.drop = null;
+        // Record move right action
+        if (game._replayRecording) {
+          game._recordReplayAction('moveRight', {x: game._board.cur.x, y: game._board.cur.y, orientation: game._board.cur.orientation, blockType: game._board.cur.blockType});
+        }
       };
       var drop = function(event){
         event.preventDefault();
         game._board.cur.drop();
         game._board.holding.drop = Date.now();
+        // Record drop action
+        if (game._replayRecording) {
+          game._recordReplayAction('drop', {x: game._board.cur.x, y: game._board.cur.y, orientation: game._board.cur.orientation, blockType: game._board.cur.blockType});
+        }
       };
       var endMoveLeft = function(event){
         event.preventDefault();
@@ -1584,10 +1719,18 @@
       var rotateLeft = function(event){
         event.preventDefault();
         game._board.cur.rotate('left');
+        // Record rotate left action
+        if (game._replayRecording) {
+          game._recordReplayAction('rotateLeft', {x: game._board.cur.x, y: game._board.cur.y, orientation: game._board.cur.orientation, blockType: game._board.cur.blockType});
+        }
       };
       var rotateRight = function(event){
         event.preventDefault();
         game._board.cur.rotate('right');
+        // Record rotate right action
+        if (game._replayRecording) {
+          game._recordReplayAction('rotateRight', {x: game._board.cur.x, y: game._board.cur.y, orientation: game._board.cur.orientation, blockType: game._board.cur.blockType});
+        }
       };
 
       // Unbind everything by default
@@ -1597,7 +1740,7 @@
       game._$touchRotateRight.unbind('touchstart touchend click');
       game._$touchDrop.unbind('touchstart touchend click');
 
-      if( ! game.options.autoplay && enable ) {
+      if( ! game.options.autoplay && enable && !game._replayPlaying ) {
         game._$touchLeft.show().bind('touchstart click', moveLeft).bind('touchend', endMoveLeft);
         game._$touchRight.show().bind('touchstart click', moveRight).bind('touchend', endMoveRight);
         game._$touchDrop.show().bind('touchstart click', drop).bind('touchend', endDrop);
@@ -1611,6 +1754,337 @@
         game._$touchDrop.hide();
       }
 
+    },
+
+    // Replay recording functions
+    _startReplayRecording: function() {
+      this._replayRecording = true;
+      this._replayData = [];
+      this._replayStartTime = Date.now();
+      // Record game start
+      this._recordReplayAction('gameStart', {blockWidth: this._BLOCK_WIDTH, blockHeight: this._BLOCK_HEIGHT});
+    },
+
+    _stopReplayRecording: function() {
+      this._replayRecording = false;
+      // Record game over
+      this._recordReplayAction('gameOver', {score: this._filled.score, lines: this._board.lines, duration: Date.now() - this._replayStartTime});
+    },
+
+    _recordReplayAction: function(action, data) {
+      if (!this._replayRecording) return;
+      
+      this._replayData.push({
+        timestamp: Date.now() - this._replayStartTime,
+        action: action,
+        data: data,
+        score: this._filled.score,
+        lines: this._board.lines
+      });
+    },
+
+    // Replay playback functions
+    startReplay: function(replayData) {
+      if (!replayData || replayData.length === 0) return;
+
+      // Stop current game
+      if (this._board.started) {
+        this._board.gameover = true;
+        clearTimeout(this._board.animateTimeoutId);
+      }
+
+      // Disable game controls
+      this.controls(false);
+      this.touchControls(false);
+
+      // Initialize replay
+      this._replayPlaying = true;
+      this._replayPaused = false;
+      this._replayCurrentStep = 0;
+      this._replaySpeed = 1.0;
+      this._replayData = replayData;
+
+      // Show replay controls
+      this._$replayControls.show();
+
+      // Reset game state
+      this._filled.clearAll();
+      this._filled._resetScore();
+      this._board.lines = 0;
+      this._board.gameover = false;
+      this._board.started = true;
+
+      // Hide menus
+      this._$start.hide();
+      this._$gameover.hide();
+      this._$score.show();
+
+      // Start replay animation
+      this._animateReplay();
+    },
+
+    pauseReplay: function() {
+      if (!this._replayPlaying) return;
+      this._replayPaused = true;
+    },
+
+    resumeReplay: function() {
+      if (!this._replayPlaying) return;
+      this._replayPaused = false;
+      this._animateReplay();
+    },
+
+    stopReplay: function() {
+      if (!this._replayPlaying) return;
+      
+      this._replayPlaying = false;
+      this._replayPaused = false;
+      this._replayCurrentStep = 0;
+      
+      // Hide replay controls
+      this._$replayControls.hide();
+      
+      // Enable game controls
+      this.controls(true);
+      this.touchControls(true);
+      
+      // Reset game
+      this._board.gameover = true;
+      this._filled.clearAll();
+      this._filled._resetScore();
+      this._board.lines = 0;
+      this._board.render(true);
+      
+      // Show start menu
+      this._$start.show();
+    },
+
+    _animateReplay: function() {
+      var game = this;
+      
+      if (!this._replayPlaying || this._replayPaused) return;
+      
+      if (this._replayCurrentStep >= this._replayData.length) {
+        // Replay finished, show game over screen for 3 seconds before stopping
+        this._board.gameover = true;
+        this._$gameover.show();
+        this._$replayControls.hide();
+        
+        setTimeout(function() {
+          game.stopReplay();
+        }, 3000);
+        
+        return;
+      }
+      
+      var step = this._replayData[this._replayCurrentStep];
+      var nextStep = this._replayData[this._replayCurrentStep + 1];
+      
+      // Execute the action
+      this._executeReplayAction(step);
+      
+      // Update score and lines
+      this._filled.score = step.score;
+      this._board.lines = step.lines;
+      this._$scoreText.text(step.score);
+      
+      // Render the board
+      this._board.render(true);
+      
+      // Calculate delay for next step
+      var delay = 0;
+      if (nextStep) {
+        delay = (nextStep.timestamp - step.timestamp) / this._replaySpeed;
+        // Ensure minimum delay to prevent flickering
+        delay = Math.max(delay, 10);
+      } else {
+        // No next step, this is the last action
+        delay = 1000; // Show last state for 1 second
+      }
+      
+      // Move to next step
+      this._replayCurrentStep++;
+      
+      // Schedule next animation
+      this._replayTimer = setTimeout(function() {
+        game._animateReplay();
+      }, delay);
+    },
+
+    _executeReplayAction: function(step) {
+      switch (step.action) {
+        case 'gameStart':
+          // Initialize game board
+          this._BLOCK_WIDTH = step.data.blockWidth;
+          this._BLOCK_HEIGHT = step.data.blockHeight;
+          this.updateSizes();
+          break;
+        
+        case 'newBlock':
+          // Generate new block
+          this._board.cur = this._shapeFactory[step.data.blockType]();
+          this._board.cur.x = step.data.x;
+          this._board.cur.y = step.data.y;
+          this._board.cur.orientation = step.data.orientation;
+          break;
+        
+        case 'moveLeft':
+          if (this._board.cur) {
+            this._board.cur.x = step.data.x;
+            this._board.cur.y = step.data.y;
+            this._board.cur.orientation = step.data.orientation;
+          }
+          break;
+        
+        case 'moveRight':
+          if (this._board.cur) {
+            this._board.cur.x = step.data.x;
+            this._board.cur.y = step.data.y;
+            this._board.cur.orientation = step.data.orientation;
+          }
+          break;
+        
+        case 'drop':
+          if (this._board.cur) {
+            this._board.cur.x = step.data.x;
+            this._board.cur.y = step.data.y;
+            this._board.cur.orientation = step.data.orientation;
+          }
+          break;
+        
+        case 'rotateLeft':
+          if (this._board.cur) {
+            this._board.cur.x = step.data.x;
+            this._board.cur.y = step.data.y;
+            this._board.cur.orientation = step.data.orientation;
+          }
+          break;
+        
+        case 'rotateRight':
+          if (this._board.cur) {
+            this._board.cur.x = step.data.x;
+            this._board.cur.y = step.data.y;
+            this._board.cur.orientation = step.data.orientation;
+          }
+          break;
+        
+        case 'clearLines':
+          // Clear lines
+          this._board.lines = step.data.lines;
+          this._filled.score = step.data.score;
+          break;
+        
+        case 'gameOver':
+          this._board.gameover = true;
+          break;
+      }
+    },
+
+    // Replay export/import functions
+    exportReplay: function() {
+      if (!this._replayData || this._replayData.length === 0) return;
+      
+      var replayObject = {
+        id: Date.now(),
+        date: new Date().toISOString(),
+        duration: this._replayData[this._replayData.length - 1].data.duration,
+        score: this._replayData[this._replayData.length - 1].data.score,
+        lines: this._replayData[this._replayData.length - 1].data.lines,
+        data: this._replayData
+      };
+      
+      var json = JSON.stringify(replayObject, null, 2);
+      var blob = new Blob([json], {type: 'application/json'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'blockrain-replay-' + replayObject.id + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },
+
+    importReplay: function(event) {
+      var game = this;
+      var file = event.target.files[0];
+      if (!file) return;
+      
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          var replayObject = JSON.parse(e.target.result);
+          if (replayObject.data && replayObject.data.length > 0) {
+            game.startReplay(replayObject.data);
+          }
+        } catch (error) {
+          alert('Invalid replay file');
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = ''; // Reset file input
+    },
+
+    // Replay history functions
+    _saveReplayToHistory: function() {
+      if (!this._replayData || this._replayData.length === 0) return;
+      
+      var replayObject = {
+        id: ++this._replayAutoSaveId,
+        date: new Date().toISOString(),
+        duration: this._replayData[this._replayData.length - 1].data.duration,
+        score: this._replayData[this._replayData.length - 1].data.score,
+        lines: this._replayData[this._replayData.length - 1].data.lines,
+        data: this._replayData
+      };
+      
+      this._replayHistory.push(replayObject);
+    },
+
+    showReplayList: function() {
+      var game = this;
+      var content = this._$replayList.find('.blockrain-replay-list-content');
+      content.empty();
+      
+      if (this._replayHistory.length === 0) {
+        content.html('<p>No replays saved</p>');
+      } else {
+        this._replayHistory.forEach(function(replay) {
+          var duration = Math.floor(replay.duration / 1000);
+          var minutes = Math.floor(duration / 60);
+          var seconds = duration % 60;
+          var durationStr = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+          
+          var item = $(
+            '<div style="margin-bottom: 10px; padding: 10px; border: 1px solid #333; border-radius: 5px;">'+ 
+              '<span style="margin-right: 20px;">Date: ' + new Date(replay.date).toLocaleString() + '</span>'+ 
+              '<span style="margin-right: 20px;">Score: ' + replay.score + '</span>'+ 
+              '<span style="margin-right: 20px;">Duration: ' + durationStr + '</span>'+ 
+              '<button class="blockrain-replay-play-history-btn" style="margin-right: 5px; padding: 3px 8px;" data-id="' + replay.id + '">Play</button>'+ 
+              '<button class="blockrain-replay-delete-history-btn" style="padding: 3px 8px;" data-id="' + replay.id + '">Delete</button>'+ 
+            '</div>');
+          
+          content.append(item);
+        });
+        
+        // Bind buttons
+        content.find('.blockrain-replay-play-history-btn').click(function() {
+          var id = parseInt($(this).data('id'));
+          var replay = game._replayHistory.find(function(r) { return r.id === id; });
+          if (replay) {
+            game._$replayList.hide();
+            game.startReplay(replay.data);
+          }
+        });
+        
+        content.find('.blockrain-replay-delete-history-btn').click(function() {
+          var id = parseInt($(this).data('id'));
+          game._replayHistory = game._replayHistory.filter(function(r) { return r.id !== id; });
+          game.showReplayList();
+        });
+      }
+      
+      this._$replayList.show();
     }
 
   });
