@@ -9,7 +9,8 @@
       autoplayRestart: true, // Restart the game automatically once a bot loses
       showFieldOnStart: true, // Show a bunch of random blocks on the start screen (it looks nice)
       theme: null, // The theme name or a theme object
-      blockWidth: 10, // How many blocks wide the field is (The standard is 10 blocks)
+      blockWidth: 10, // How many blocks wide the field is (Range: 6-30)
+      blockHeight: 16, // How many blocks high the field is (Range: 10-40)
       autoBlockWidth: false, // The blockWidth is dinamically calculated based on the autoBlockSize. Disabled blockWidth. Useful for responsive backgrounds
       autoBlockSize: 24, // The max size of a block for autowidth mode
       difficulty: 'normal', // Difficulty (normal|nice|evil).
@@ -128,8 +129,23 @@
       this._PIXEL_WIDTH = this.element.innerWidth();
       this._PIXEL_HEIGHT = this.element.innerHeight();
 
-      this._BLOCK_WIDTH = this.options.blockWidth;
-      this._BLOCK_HEIGHT = Math.floor(this.element.innerHeight() / this.element.innerWidth() * this._BLOCK_WIDTH);
+      // Apply width range constraints (6-30)
+      this._BLOCK_WIDTH = Math.max(6, Math.min(30, this.options.blockWidth));
+      
+      // Apply height range constraints (10-40)
+      this._BLOCK_HEIGHT = Math.max(10, Math.min(40, this.options.blockHeight));
+
+      // In responsive mode, calculate width based on container size and autoBlockSize
+      if (this.options.autoBlockWidth) {
+        var calculatedWidth = Math.ceil(this.element.width() / this.options.autoBlockSize);
+        this._BLOCK_WIDTH = Math.max(6, Math.min(30, calculatedWidth));
+        
+        // If height is not explicitly set, calculate it based on container ratio
+        if (this.options.blockHeight === 16) { // Default value
+          this._BLOCK_HEIGHT = Math.floor(this.element.innerHeight() / this.element.innerWidth() * this._BLOCK_WIDTH);
+          this._BLOCK_HEIGHT = Math.max(10, Math.min(40, this._BLOCK_HEIGHT));
+        }
+      }
 
       this._block_size = Math.floor(this._PIXEL_WIDTH / this._BLOCK_WIDTH);
       this._border_width = 2;
@@ -216,7 +232,7 @@
       this.updateSizes();
 
       $(window).resize(function(){
-        //game.updateSizes();
+        game.updateSizes();
       });
 
       this._SetupShapeFactory();
@@ -758,6 +774,11 @@
             shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
             if (!shape) throw new Error('No shape returned from shape function!', func);
             shape.init();
+            // 检查新形状是否能放置在初始位置
+            if (game._checkCollisions(shape.x, shape.y, shape.getBlocks())) {
+              game.gameover();
+              return null;
+            }
             result = shape;
           }
           else {
@@ -767,6 +788,11 @@
             this.next = shape;
             if (_set_next_only) return null;
             result = next || this.nextShape();
+            // 检查新形状是否能放置在初始位置
+            if (result && game._checkCollisions(result.x, result.y, result.getBlocks())) {
+              game.gameover();
+              return null;
+            }
           }
 
           if( game.options.autoplay ) { //fun little hack...
@@ -801,7 +827,7 @@
 
           if( this.animateTimeoutId ){ clearTimeout(this.animateTimeoutId); }
 
-          //game.updateSizes();
+          // Update sizes is now handled by window resize event
 
           if( !this.paused && !this.gameover ) {
 
@@ -836,7 +862,7 @@
                 var blockIndex = 0;
                 for (var i=0; i<cur.blocksLen; i+=2) {
                   game._filled.add(x + blocks[i], y + blocks[i+1], cur.blockType, cur.blockVariation, blockIndex, cur.orientation);
-                  if (y + blocks[i] < 0) {
+                  if (y + blocks[i+1] < 0) {
                     gameOver = true;
                   }
                   blockIndex++;
@@ -1277,7 +1303,8 @@
     _refreshBlockSizes: function() {
 
       if( this.options.autoBlockWidth ) {
-        this.options.blockWidth = Math.ceil( this.element.width() / this.options.autoBlockSize );
+        var calculatedWidth = Math.ceil( this.element.width() / this.options.autoBlockSize );
+        this.options.blockWidth = Math.max(6, Math.min(30, calculatedWidth));
       }
 
     },

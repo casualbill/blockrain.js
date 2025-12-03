@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockrain.js Custom Size Test</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        #game-container {
+            width: 100%;
+            height: 600px;
+            margin-bottom: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .controls {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: inline-block;
+            width: 150px;
+            font-weight: bold;
+        }
+        input[type="number"] {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .info {
+            background-color: #e8f4f8;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Blockrain.js Custom Size Test</h1>
+        
+        <div class="info">
+            <p><strong>Width range:</strong> 6-30 columns</p>
+            <p><strong>Height range:</strong> 10-40 rows</p>
+            <p><strong>Default:</strong> 10 columns × 16 rows</p>
+        </div>
+
+        <div id="game-container"></div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="width-input">Game Width:</label>
+                <input type="number" id="width-input" min="6" max="30" value="10">
+                <span>columns (6-30)</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="height-input">Game Height:</label>
+                <input type="number" id="height-input" min="10" max="40" value="16">
+                <span>rows (10-40)</span>
+            </div>
+            
+            <button id="apply-btn">Apply Settings</button>
+            <button id="reset-btn">Reset to Default</button>
+        </div>
+    </div>
+
+    <script src="assets/js/jquery-1.11.1.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <script src="src/blockrain.jquery.src.js"></script>
+    <script src="src/blockrain.jquery.themes.js"></script>
+    
+    <script>
+        $(document).ready(function() {
+            // Initialize game with default settings
+            var game = $('#game-container').blockrain({
+                theme: 'retro',
+                blockWidth: 10,
+                blockHeight: 16
+            });
+
+            // Apply settings button click handler
+            $('#apply-btn').click(function() {
+                var width = parseInt($('#width-input').val());
+                var height = parseInt($('#height-input').val());
+                
+                // Destroy current game instance
+                $('#game-container').blockrain('destroy');
+                
+                // Reinitialize with new settings
+                game = $('#game-container').blockrain({
+                    theme: 'retro',
+                    blockWidth: width,
+                    blockHeight: height
+                });
+            });
+
+            // Reset button click handler
+            $('#reset-btn').click(function() {
+                $('#width-input').val(10);
+                $('#height-input').val(16);
+                
+                // Destroy current game instance
+                $('#game-container').blockrain('destroy');
+                
+                // Reinitialize with default settings
+                game = $('#game-container').blockrain({
+                    theme: 'retro',
+                    blockWidth: 10,
+                    blockHeight: 16
+                });
+            });
+        });
+    </script>
+</body>
+</html>
