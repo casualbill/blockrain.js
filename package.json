@@ -10,7 +10,9 @@
     "build": "gulp build",
     "dev": "gulp watch & http-server -p 3000 -c-1 -o",
     "dev:watch": "gulp watch",
-    "dev:server": "http-server -p 3000 -c-1"
+    "dev:server": "http-server -p 3000 -c-1",
+    "dev:3d": "node server.js",
+    "build:3d": "mkdir -p build && cp index-3d.html build/ && cp -r src build/"
   },
   "devDependencies": {
     "gulp": "^4.0.2",
@@ -19,7 +21,8 @@
     "gulp-header": "^2.0.9",
     "gulp-uglify": "^3.0.2",
     "gulp-zip": "^5.1.0",
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "@playwright/test": "^1.37.0"
   },
   "repository": {
     "type": "git",
