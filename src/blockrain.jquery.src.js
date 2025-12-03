@@ -9,7 +9,8 @@
       autoplayRestart: true, // Restart the game automatically once a bot loses
       showFieldOnStart: true, // Show a bunch of random blocks on the start screen (it looks nice)
       theme: null, // The theme name or a theme object
-      blockWidth: 10, // How many blocks wide the field is (The standard is 10 blocks)
+      blockWidth: 10, // How many blocks wide the field is (Range: 6-30)
+      blockHeight: 16, // How many blocks tall the field is (Range: 10-40)
       autoBlockWidth: false, // The blockWidth is dinamically calculated based on the autoBlockSize. Disabled blockWidth. Useful for responsive backgrounds
       autoBlockSize: 24, // The max size of a block for autowidth mode
       difficulty: 'normal', // Difficulty (normal|nice|evil).
@@ -128,10 +129,21 @@
       this._PIXEL_WIDTH = this.element.innerWidth();
       this._PIXEL_HEIGHT = this.element.innerHeight();
 
-      this._BLOCK_WIDTH = this.options.blockWidth;
-      this._BLOCK_HEIGHT = Math.floor(this.element.innerHeight() / this.element.innerWidth() * this._BLOCK_WIDTH);
+      // Clamp blockWidth to range 6-30
+      this._BLOCK_WIDTH = Math.max(6, Math.min(30, this.options.blockWidth));
+      // Clamp blockHeight to range 10-40
+      this._BLOCK_HEIGHT = Math.max(10, Math.min(40, this.options.blockHeight));
 
-      this._block_size = Math.floor(this._PIXEL_WIDTH / this._BLOCK_WIDTH);
+      // If autoBlockWidth is enabled, calculate blockWidth based on autoBlockSize
+      if (this.options.autoBlockWidth) {
+        var calculatedWidth = Math.floor(this._PIXEL_WIDTH / this.options.autoBlockSize);
+        this._BLOCK_WIDTH = Math.max(6, Math.min(30, calculatedWidth));
+        // Recalculate block size based on clamped width
+        this._block_size = Math.floor(this._PIXEL_WIDTH / this._BLOCK_WIDTH);
+      } else {
+        this._block_size = Math.floor(this._PIXEL_WIDTH / this._BLOCK_WIDTH);
+      }
+
       this._border_width = 2;
 
       // Recalculate the pixel width and height so the canvas always has the best possible size
@@ -216,7 +228,7 @@
       this.updateSizes();
 
       $(window).resize(function(){
-        //game.updateSizes();
+        game.updateSizes();
       });
 
       this._SetupShapeFactory();
