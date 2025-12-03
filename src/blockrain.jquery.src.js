@@ -9,8 +9,9 @@
       autoplayRestart: true, // Restart the game automatically once a bot loses
       showFieldOnStart: true, // Show a bunch of random blocks on the start screen (it looks nice)
       theme: null, // The theme name or a theme object
-      blockWidth: 10, // How many blocks wide the field is (The standard is 10 blocks)
-      autoBlockWidth: false, // The blockWidth is dinamically calculated based on the autoBlockSize. Disabled blockWidth. Useful for responsive backgrounds
+      blockWidth: 10, // How many blocks wide the field is (6-30)
+      blockHeight: 16, // How many blocks tall the field is (10-40)
+      autoBlockWidth: false, // The blockWidth is dinamically calculated based on the autoBlockSize. Disabled blockWidth.
       autoBlockSize: 24, // The max size of a block for autowidth mode
       difficulty: 'normal', // Difficulty (normal|nice|evil).
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
@@ -128,8 +129,27 @@
       this._PIXEL_WIDTH = this.element.innerWidth();
       this._PIXEL_HEIGHT = this.element.innerHeight();
 
-      this._BLOCK_WIDTH = this.options.blockWidth;
-      this._BLOCK_HEIGHT = Math.floor(this.element.innerHeight() / this.element.innerWidth() * this._BLOCK_WIDTH);
+      // 应用宽度边界检查 (6-30列)
+      if (this.options.autoBlockWidth) {
+        // 响应式模式：根据容器宽度和自动块大小计算宽度
+        this._BLOCK_WIDTH = Math.ceil(this.element.width() / this.options.autoBlockSize);
+        this._BLOCK_WIDTH = Math.max(6, Math.min(30, this._BLOCK_WIDTH));
+        
+        // 响应式模式下的高度计算
+        if (this.options.blockHeight) {
+          // 使用用户设置的高度
+          this._BLOCK_HEIGHT = Math.max(10, Math.min(40, this.options.blockHeight));
+        } else {
+          // 如果没有设置高度，根据容器比例计算并限制在10-40行
+          this._BLOCK_HEIGHT = Math.floor(this.element.innerHeight() / this.element.innerWidth() * this._BLOCK_WIDTH);
+          this._BLOCK_HEIGHT = Math.max(10, Math.min(40, this._BLOCK_HEIGHT));
+        }
+      } else {
+        // 使用用户设置的宽度
+        this._BLOCK_WIDTH = Math.max(6, Math.min(30, this.options.blockWidth));
+        // 使用用户设置的高度
+        this._BLOCK_HEIGHT = Math.max(10, Math.min(40, this.options.blockHeight));
+      }
 
       this._block_size = Math.floor(this._PIXEL_WIDTH / this._BLOCK_WIDTH);
       this._border_width = 2;
@@ -211,12 +231,20 @@
       this._createHolder();
       this._createUI();
 
+      // 初始化时应用边界检查
+      this._applyBoundaryChecks();
       this._refreshBlockSizes();
-
       this.updateSizes();
 
+      // 响应式适配：窗口大小改变时更新游戏尺寸
       $(window).resize(function(){
-        //game.updateSizes();
+        game._applyBoundaryChecks();
+        game.updateSizes();
+        // 如果游戏已经开始，重新初始化游戏区域以适应新尺寸
+        if (game._board && game._board.started) {
+          game._SetupFilled();
+          game._board.init();
+        }
       });
 
       this._SetupShapeFactory();
@@ -422,9 +450,20 @@
           init: function() {
             $.extend(this, {
               orientation: 0,
+              // 根据游戏区域宽度计算方块初始X位置，确保居中
               x: Math.floor(game._BLOCK_WIDTH / 2) - 1,
-              y: -1
+              y: 0
             });
+            
+            // 确保方块不会超出游戏区域边界
+            var bounds = this.getBounds();
+            while (this.x + bounds.right >= game._BLOCK_WIDTH) {
+              this.x--;
+            }
+            while (this.x + bounds.left < 0) {
+              this.x++;
+            }
+            
             return this;
           },
 
@@ -452,14 +491,14 @@
 
               this.orientation = orientation;
 
-              while (this.x >= game._BLOCK_WIDTH - 2) {
+              // 根据当前游戏区域宽度调整方块位置，确保旋转后不会超出边界
+              var bounds = this.getBounds(this.getBlocks(orientation));
+              while (this.x + bounds.right >= game._BLOCK_WIDTH) {
                 this.x--;
               }
-              while (this.x < 0) {
+              while (this.x + bounds.left < 0) {
                 this.x++;
               }
-
-              if (this.blockType === "line" && this.x === 0) this.x++;
 
               if ( game._checkCollisions(
                   this.x,
@@ -579,6 +618,10 @@
         score: 0,
         toClear: {},
         check: function(x, y) {
+          // 确保坐标在有效范围内
+          if (x < 0 || x >= game._BLOCK_WIDTH || y < 0 || y >= game._BLOCK_HEIGHT) {
+            return true; // 超出范围视为碰撞
+          }
           return this.data[this.asIndex(x, y)];
         },
         add: function(x, y, blockType, blockVariation, blockIndex, blockOrientation) {
@@ -755,7 +798,8 @@
           if( game.options.no_preview ) {
             this.next = null;
             if (_set_next_only) return null;
-            shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
+              // 传递当前游戏区域的宽度和高度给形状生成函数
+              shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
             if (!shape) throw new Error('No shape returned from shape function!', func);
             shape.init();
             result = shape;
@@ -1213,6 +1257,16 @@
     },
 
 
+    /**
+     * 应用宽度和高度的边界检查
+     */
+    _applyBoundaryChecks: function() {
+      // 确保宽度在6-30列之间
+      this.options.blockWidth = Math.max(6, Math.min(30, this.options.blockWidth));
+      // 确保高度在10-40行之间
+      this.options.blockHeight = Math.max(10, Math.min(40, this.options.blockHeight));
+    },
+
     _createUI: function() {
 
       var game = this;
@@ -1228,18 +1282,45 @@
       game._$scoreText = game._$score.find('.blockrain-score-num');
       game._$gameholder.append(game._$score);
 
-      // Create the start menu
+      // Create the start menu with width and height controls
       game._$start = $(
-        '<div class="blockrain-start-holder" style="position:absolute;">'+
-          '<div class="blockrain-start">'+
-            '<div class="blockrain-start-msg">'+ this.options.playText +'</div>'+
-            '<a class="blockrain-btn blockrain-start-btn">'+ this.options.playButtonText +'</a>'+
-          '</div>'+
+        '<div class="blockrain-start-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-start">'+ 
+            '<div class="blockrain-start-msg">'+ this.options.playText +'</div>'+ 
+            '<div class="blockrain-game-size-controls">'+ 
+              '<div class="blockrain-control-group">'+ 
+                '<label for="blockrain-width">宽度 (6-30):</label>'+ 
+                '<input type="number" id="blockrain-width" min="6" max="30" value="'+ this.options.blockWidth +'">'+ 
+              '</div>'+ 
+              '<div class="blockrain-control-group">'+ 
+                '<label for="blockrain-height">高度 (10-40):</label>'+ 
+                '<input type="number" id="blockrain-height" min="10" max="40" value="'+ this.options.blockHeight +'">'+ 
+              '</div>'+ 
+            '</div>'+ 
+            '<a class="blockrain-btn blockrain-start-btn">'+ this.options.playButtonText +'</a>'+ 
+          '</div>'+ 
         '</div>').hide();
       game._$gameholder.append(game._$start);
 
       game._$start.find('.blockrain-start-btn').click(function(event){
         event.preventDefault();
+        // 获取用户设置的宽度和高度
+        var width = parseInt($('#blockrain-width').val());
+        var height = parseInt($('#blockrain-height').val());
+        
+        // 应用边界检查
+        game.options.blockWidth = Math.max(6, Math.min(30, width));
+        game.options.blockHeight = Math.max(10, Math.min(40, height));
+        
+        // 更新游戏尺寸
+        game._applyBoundaryChecks();
+        game.updateSizes();
+        
+        // 重新初始化游戏区域
+        game._SetupFilled();
+        game._board.init();
+        
+        // 开始游戏
         game.start();
       });
 
