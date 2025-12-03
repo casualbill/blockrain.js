@@ -31,7 +31,12 @@
       // When a block is placed
       onPlaced: function(){},
       // When a line is made. Returns the number of lines, score assigned and total score
-      onLine: function(lines, scoreIncrement, score){}
+      onLine: function(lines, scoreIncrement, score){},
+
+      // Replay options
+      enableReplay: true, // Enable replay functionality
+      replaySpeed: 1, // Default replay speed (0.5, 1, 2, 4)
+      replayMaxStorage: 50 // Maximum number of replays to store
     },
 
 
@@ -52,6 +57,11 @@
       this.showGameOverMessage();
       this._board.gameover = true;
       this.options.onGameOver.call(this.element, this._filled.score);
+      
+      // Save replay when game ends
+      if (this.options.enableReplay && this._replayRecording) {
+        this._saveReplay();
+      }
     },
 
     _doStart: function() {
@@ -64,10 +74,84 @@
       this._board.render(true);
       this._board.animate();
 
+      // Start recording for replay
+      if (this.options.enableReplay) {
+        this._startReplayRecording();
+      }
+
       this._$start.fadeOut(150);
       this._$gameover.fadeOut(150);
       this._$score.fadeIn(150);
     },
+
+    /**
+     * Replay functionality
+     */
+    _startReplayRecording: function() {
+      this._replayRecording = true;
+      this._replayData = {
+        startTime: Date.now(),
+        endTime: null,
+        totalScore: 0,
+        totalLines: 0,
+        actions: []
+      };
+    },
+
+    _stopReplayRecording: function() {
+      this._replayRecording = false;
+      if (this._replayData) {
+        this._replayData.endTime = Date.now();
+        this._replayData.totalScore = this._filled.score;
+        this._replayData.totalLines = this._board.lines;
+      }
+    },
+
+    _saveReplay: function() {
+      this._stopReplayRecording();
+      
+      // Get existing replays from localStorage
+      var replays = JSON.parse(localStorage.getItem('blockrain_replays') || '[]');
+      
+      // Create replay object
+      var replay = {
+        id: Date.now(),
+        date: new Date().toISOString(),
+        score: this._replayData.totalScore,
+        lines: this._replayData.totalLines,
+        duration: this._replayData.endTime - this._replayData.startTime,
+        data: this._replayData
+      };
+      
+      // Add new replay to the beginning of the list
+      replays.unshift(replay);
+      
+      // Limit the number of replays stored
+      if (replays.length > this.options.replayMaxStorage) {
+        replays = replays.slice(0, this.options.replayMaxStorage);
+      }
+      
+      // Save back to localStorage
+      localStorage.setItem('blockrain_replays', JSON.stringify(replays));
+    },
+
+    _recordAction: function(action, data) {
+      if (this._replayRecording && this._replayData) {
+        this._replayData.actions.push({
+          time: Date.now() - this._replayData.startTime,
+          action: action,
+          data: data
+        });
+      }
+    },
+
+    // Replay state
+    _replayRecording: false,
+    _replayData: null,
+    _replayPlaying: false,
+    _replayCurrentTime: 0,
+    _replayInterval: null,
+    _replayActionIndex: 0,
 
 
     pause: function() {
@@ -76,6 +160,254 @@
 
     resume: function() {
       this._board.paused = false;
+    },
+
+    /**
+     * Replay control methods
+     */
+    getReplays: function() {
+      return JSON.parse(localStorage.getItem('blockrain_replays') || '[]');
+    },
+
+    deleteReplay: function(id) {
+      var replays = JSON.parse(localStorage.getItem('blockrain_replays') || '[]');
+      replays = replays.filter(function(replay) { return replay.id !== id; });
+      localStorage.setItem('blockrain_replays', JSON.stringify(replays));
+    },
+
+    exportReplay: function(id) {
+      var replays = this.getReplays();
+      var replay = replays.find(function(replay) { return replay.id === id; });
+      if (replay) {
+        var dataStr = JSON.stringify(replay.data, null, 2);
+        var dataBlob = new Blob([dataStr], {type: 'application/json'});
+        var url = URL.createObjectURL(dataBlob);
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = 'blockrain_replay_' + id + '.json';
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+    },
+
+    importReplay: function(file) {
+      var reader = new FileReader();
+      var game = this;
+      reader.onload = function(e) {
+        try {
+          var replayData = JSON.parse(e.target.result);
+          // Create replay object
+          var replay = {
+            id: Date.now(),
+            date: new Date().toISOString(),
+            score: replayData.totalScore,
+            lines: replayData.totalLines,
+            duration: replayData.endTime - replayData.startTime,
+            data: replayData
+          };
+          
+          // Save to localStorage
+          var replays = game.getReplays();
+          replays.unshift(replay);
+          if (replays.length > game.options.replayMaxStorage) {
+            replays = replays.slice(0, game.options.replayMaxStorage);
+          }
+          localStorage.setItem('blockrain_replays', JSON.stringify(replays));
+          
+          // Notify user
+          alert('Replay imported successfully!');
+        } catch (error) {
+          alert('Failed to import replay: Invalid JSON format');
+        }
+      };
+      reader.readAsText(file);
+    },
+
+    /**
+     * Replay playback methods
+     */
+    playReplay: function(replayData) {
+      // Stop any ongoing game
+      if (this._board.started) {
+        this._board.gameover = true;
+      }
+      
+      // Reset game state
+      this._filled.clearAll();
+      this._filled._resetScore();
+      this._board.started = true;
+      this._board.gameover = false;
+      this._board.dropDelay = 5;
+      this._board.paused = false;
+      
+      // Hide UI elements
+      this._$start.fadeOut(150);
+      this._$gameover.fadeOut(150);
+      this._$score.fadeIn(150);
+      
+      // Start replay
+      this._replayPlaying = true;
+      this._replayCurrentTime = 0;
+      this._replayData = replayData;
+      this._replayActionIndex = 0;
+      
+      // Disable user controls during replay
+      this.controls(false);
+      this.touchControls(false);
+      
+      // Start replay loop
+      this._startReplayLoop();
+    },
+
+    pauseReplay: function() {
+      if (this._replayPlaying) {
+        this._replayPlaying = false;
+        if (this._replayInterval) {
+          clearInterval(this._replayInterval);
+          this._replayInterval = null;
+        }
+      }
+    },
+
+    resumeReplay: function() {
+      if (!this._replayPlaying && this._replayData) {
+        this._replayPlaying = true;
+        this._startReplayLoop();
+      }
+    },
+
+    stopReplay: function() {
+      this._replayPlaying = false;
+      this._replayCurrentTime = 0;
+      this._replayData = null;
+      this._replayActionIndex = 0;
+      
+      if (this._replayInterval) {
+        clearInterval(this._replayInterval);
+        this._replayInterval = null;
+      }
+      
+      // Enable user controls
+      this.controls(true);
+      this.touchControls(true);
+      
+      // Reset game state
+      this._board.started = false;
+      this._board.gameover = true;
+      this.showStartMessage();
+    },
+
+    setReplaySpeed: function(speed) {
+      // Validate speed (0.5, 1, 2, 4)
+      if ([0.5, 1, 2, 4].indexOf(speed) !== -1) {
+        this.options.replaySpeed = speed;
+        
+        // Restart loop if replay is playing
+        if (this._replayPlaying) {
+          this.pauseReplay();
+          this.resumeReplay();
+        }
+      }
+    },
+
+    jumpToReplayTime: function(time) {
+      if (this._replayData && time >= 0 && time <= (this._replayData.endTime - this._replayData.startTime)) {
+        this._replayCurrentTime = time;
+        
+        // Find the action index corresponding to the new time
+        this._replayActionIndex = 0;
+        while (this._replayActionIndex < this._replayData.actions.length && 
+               this._replayData.actions[this._replayActionIndex].time <= this._replayCurrentTime) {
+          this._replayActionIndex++;
+        }
+      }
+    },
+
+    _startReplayLoop: function() {
+      var game = this;
+      var frameDuration = 16.67; // Approximate duration of one frame (60 FPS)
+      
+      this._replayInterval = setInterval(function() {
+        if (!game._replayPlaying || !game._replayData) {
+          return;
+        }
+        
+        // Update replay time
+        game._replayCurrentTime += frameDuration * game.options.replaySpeed;
+        
+        // Execute all actions that have occurred up to the current time
+        while (game._replayActionIndex < game._replayData.actions.length && 
+               game._replayData.actions[game._replayActionIndex].time <= game._replayCurrentTime) {
+          var action = game._replayData.actions[game._replayActionIndex];
+          game._executeReplayAction(action);
+          game._replayActionIndex++;
+        }
+        
+        // Simulate方块自动下落
+        game._board.dropCount++;
+        if (game._board.dropCount >= game._board.dropDelay) {
+          // Check if we can drop the block
+          var cur = game._board.cur;
+          if (cur) {
+            var x = cur.x, y = cur.y, blocks = cur.getBlocks();
+            if (game._checkCollisions(x, y + 1, blocks, true)) {
+              // Collision - place the block
+              var blockIndex = 0;
+              for (var i = 0; i < cur.blocksLen; i += 2) {
+                game._filled.add(x + blocks[i], y + blocks[i + 1], cur.blockType, cur.blockVariation, blockIndex, cur.orientation);
+                if (y + blocks[i] < 0) {
+                  // Game over
+                  game.stopReplay();
+                  game.showGameOverMessage();
+                  return;
+                }
+                blockIndex++;
+              }
+              game._filled.checkForClears();
+              game._board.cur = game._board.nextShape();
+              game._board.renderChanged = true;
+            } else {
+              // No collision - drop the block
+              cur.y++;
+              game._board.renderChanged = true;
+            }
+          }
+          game._board.dropCount = 0;
+        }
+        
+        // Check if replay has ended
+        if (game._replayCurrentTime >= (game._replayData.endTime - game._replayData.startTime)) {
+          game.stopReplay();
+          game.showGameOverMessage();
+        } else {
+          // Render the game
+          if (game._board.renderChanged) {
+            game._board.render();
+            game._board.renderChanged = false;
+          }
+        }
+      }, frameDuration);
+    },
+
+    _executeReplayAction: function(action) {
+      if (!this._board.cur) {
+        return;
+      }
+      
+      switch (action.action) {
+        case 'moveLeft':
+          this._board.cur.moveLeft();
+          break;
+        case 'moveRight':
+          this._board.cur.moveRight();
+          break;
+        case 'drop':
+          this._board.cur.drop();
+          break;
+        case 'rotate':
+          this._board.cur.rotate(action.data.direction);
+          break;
+      }
     },
 
     autoplay: function(enable) {
@@ -435,7 +767,7 @@
           orientation: 0, // 4 possible
 
           rotate: function(direction) {
-            var orientation =
+            var orientation = 
               (this.orientation + (direction === "left" ? 1 : -1) + 4) % 4;
 
             if (!game._checkCollisions(
@@ -445,6 +777,8 @@
               )) {
               this.orientation = orientation;
               game._board.renderChanged = true;
+              // Record rotate action
+              game._recordAction('rotate', { direction: direction, blockType: this.blockType });
             } else {
               var ogOrientation = this.orientation;
               var ogX = this.x;
@@ -481,6 +815,8 @@
                 }
               }
               game._board.renderChanged = true;
+              // Record rotate action even if collision occurred (for replay accuracy)
+              game._recordAction('rotate', { direction: direction, blockType: this.blockType });
             }
           },
 
@@ -488,12 +824,16 @@
             if (!game._checkCollisions(this.x + 1, this.y, this.getBlocks())) {
               this.x++;
               game._board.renderChanged = true;
+              // Record move right action
+              game._recordAction('moveRight', { blockType: this.blockType });
             }
           },
           moveLeft: function() {
             if (!game._checkCollisions(this.x - 1, this.y, this.getBlocks())) {
               this.x--;
               game._board.renderChanged = true;
+              // Record move left action
+              game._recordAction('moveLeft', { blockType: this.blockType });
             }
           },
           drop: function() {
@@ -503,6 +843,8 @@
               game._board.dropCount = -1;
               game._board.animate();
               game._board.renderChanged = true;
+              // Record drop action
+              game._recordAction('drop', { blockType: this.blockType });
             }
           },
 
@@ -1244,16 +1586,25 @@
       });
 
       // Create the game over menu
-      game._$gameover = $(
-        '<div class="blockrain-game-over-holder" style="position:absolute;">'+
-          '<div class="blockrain-game-over">'+
-            '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+
-            '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+
-          '</div>'+
+      game._$gameover = $( 
+        '<div class="blockrain-game-over-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-game-over">'+ 
+            '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+ 
+            '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+ 
+            '<a class="blockrain-btn blockrain-replay-btn">Play Replay</a>'+ 
+          '</div>'+ 
         '</div>').hide();
       game._$gameover.find('.blockrain-game-over-btn').click(function(event){
         event.preventDefault();
         game.restart();
+      });
+      game._$gameover.find('.blockrain-replay-btn').click(function(event){
+        event.preventDefault();
+        // Load the most recent replay
+        var replays = game.getReplays();
+        if (replays.length > 0) {
+          game.playReplay(replays[replays.length - 1]);
+        }
       });
       game._$gameholder.append(game._$gameover);
 
