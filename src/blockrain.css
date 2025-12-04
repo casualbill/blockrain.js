@@ -98,6 +98,106 @@
 }
 .blockrain-btn::after {
   position: absolute;
+
+/* Recording */
+.blockrain-recording {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: none;
+  align-items: center;
+  color: #ff0000;
+  font-size: 14px;
+  z-index: 20;
+}
+
+.blockrain-recording.active {
+  display: flex;
+}
+
+.blockrain-recording-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ff0000;
+  margin-right: 5px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.blockrain-recording-controls {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.blockrain-recording-controls .blockrain-btn {
+  padding: 10px 20px;
+  font-size: 16px;
+  margin: 5px;
+}
+
+.blockrain-recording-controls .blockrain-btn.recording-active {
+  border-color: #ff0000;
+  color: #ff0000;
+}
+
+.blockrain-recording-controls .blockrain-btn.recording-active::before,
+.blockrain-recording-controls .blockrain-btn.recording-active::after {
+  border-color: #ff0000;
+}
+
+.blockrain-export-controls {
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+}
+
+.blockrain-export-controls.active {
+  display: flex;
+}
+
+.blockrain-current-selection {
+  margin-bottom: 10px;
+  font-size: 16px;
+  color: #ffffff;
+}
+
+.blockrain-export-controls .blockrain-btn {
+  padding: 10px 20px;
+  font-size: 16px;
+  margin: 5px;
+}
+
+.blockrain-export-controls select {
+  background: none;
+  color: #ffffff;
+  border: 2px solid #ffffff;
+  padding: 8px 15px;
+  font-size: 16px;
+  margin: 5px;
+  cursor: pointer;
+}
+
+.blockrain-export-controls select option {
+  background-color: #333;
+  color: #ffffff;
+}
   content: "";
   top: 0px;
   left: 100%;

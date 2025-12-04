@@ -194,6 +194,14 @@
     _$gameover: null,
     _$score: null,
     _$scoreText: null,
+    _$recordingControls: null,
+    _$recordingStatus: null,
+    _$exportControls: null,
+
+    // Recording
+    _recorder: null,
+    _recordingChunks: [],
+    _isRecording: false,
 
 
     // Canvas
@@ -1218,24 +1226,62 @@
       var game = this;
 
       // Score
-      game._$score = $(
-        '<div class="blockrain-score-holder" style="position:absolute;">'+
-          '<div class="blockrain-score">'+
-            '<div class="blockrain-score-msg">'+ this.options.scoreText +'</div>'+
-            '<div class="blockrain-score-num">0</div>'+
-          '</div>'+
-        '</div>').hide();
+      game._$score = $( 
+        '<div class="blockrain-score-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-score">'+ 
+            '<div class="blockrain-score-msg">'+ this.options.scoreText +'</div>'+ 
+            '<div class="blockrain-score-num">0</div>'+ 
+          '</div>'+ 
+        '</div>' ).hide();
       game._$scoreText = game._$score.find('.blockrain-score-num');
       game._$gameholder.append(game._$score);
 
+      // Recording controls
+      game._$recordingControls = $( 
+        '<div class="blockrain-recording-controls">'+ 
+          '<a class="blockrain-btn blockrain-record-btn">开始录制</a>'+ 
+          '<a class="blockrain-btn blockrain-stop-record-btn" style="display:none;">停止录制</a>'+ 
+        '</div>' ).hide();
+      game._$gameholder.append(game._$recordingControls);
+
+      // Recording status
+      game._$recordingStatus = $( 
+        '<div class="blockrain-recording" style="display:none;">'+ 
+          '<div class="blockrain-recording-dot"></div>'+ 
+          '<div>正在录制</div>'+ 
+        '</div>' ); 
+      game._$gameholder.append(game._$recordingStatus);
+
+      // Export controls
+      game._$exportControls = $( 
+        '<div class="blockrain-export-controls" style="display:none;">'+ 
+          '<div class="blockrain-current-selection">'+ 
+            '<span>当前选择：</span>'+ 
+            '<span class="blockrain-selected-format">MP4</span>'+ 
+            '<span> / </span>'+ 
+            '<span class="blockrain-selected-codec">H.264</span>'+ 
+          '</div>'+ 
+          '<select class="blockrain-format-select">'+ 
+            '<option value="mp4">MP4</option>'+ 
+            '<option value="webm">WebM</option>'+ 
+            '<option value="mkv">MKV</option>'+ 
+          '</select>'+ 
+          '<select class="blockrain-codec-select">'+ 
+            '<option value="h264">H.264</option>'+ 
+            '<option value="h265">H.265</option>'+ 
+          '</select>'+ 
+          '<a class="blockrain-btn blockrain-export-btn">导出视频</a>'+ 
+        '</div>' ); 
+      game._$gameholder.append(game._$exportControls);
+
       // Create the start menu
-      game._$start = $(
-        '<div class="blockrain-start-holder" style="position:absolute;">'+
-          '<div class="blockrain-start">'+
-            '<div class="blockrain-start-msg">'+ this.options.playText +'</div>'+
-            '<a class="blockrain-btn blockrain-start-btn">'+ this.options.playButtonText +'</a>'+
-          '</div>'+
-        '</div>').hide();
+      game._$start = $( 
+        '<div class="blockrain-start-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-start">'+ 
+            '<div class="blockrain-start-msg">'+ this.options.playText +'</div>'+ 
+            '<a class="blockrain-btn blockrain-start-btn">'+ this.options.playButtonText +'</a>'+ 
+          '</div>'+ 
+        '</div>' ).hide();
       game._$gameholder.append(game._$start);
 
       game._$start.find('.blockrain-start-btn').click(function(event){
@@ -1244,13 +1290,13 @@
       });
 
       // Create the game over menu
-      game._$gameover = $(
-        '<div class="blockrain-game-over-holder" style="position:absolute;">'+
-          '<div class="blockrain-game-over">'+
-            '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+
-            '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+
-          '</div>'+
-        '</div>').hide();
+      game._$gameover = $( 
+        '<div class="blockrain-game-over-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-game-over">'+ 
+            '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+ 
+            '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+ 
+          '</div>'+ 
+        '</div>' ).hide();
       game._$gameover.find('.blockrain-game-over-btn').click(function(event){
         event.preventDefault();
         game.restart();
@@ -1258,6 +1304,7 @@
       game._$gameholder.append(game._$gameover);
 
       this._createControls();
+      this._setupRecordingControls();
     },
 
 
@@ -1271,6 +1318,201 @@
       game._$touchRotateLeft = $('<a class="blockrain-touch blockrain-touch-rotate-left" />').appendTo(game._$gameholder);
       game._$touchDrop = $('<a class="blockrain-touch blockrain-touch-drop" />').appendTo(game._$gameholder);
 
+    },
+
+    _setupRecordingControls: function() {
+
+      var game = this;
+
+      // Show recording controls when game starts
+      game.options.onStart = function() {
+        game._$recordingControls.show();
+      };
+
+      // Hide recording controls and show export controls when game over
+      game.options.onGameOver = function(score) {
+        if (game._isRecording) {
+          game._stopRecording();
+        }
+        game._$recordingControls.hide();
+        game._$exportControls.show();
+      };
+
+      // Start recording button click handler
+      game._$recordingControls.find('.blockrain-record-btn').click(function(event) {
+        event.preventDefault();
+        game._startRecording();
+      });
+
+      // Stop recording button click handler
+      game._$recordingControls.find('.blockrain-stop-record-btn').click(function(event) {
+        event.preventDefault();
+        game._stopRecording();
+      });
+
+      // Export video button click handler
+      game._$exportControls.find('.blockrain-export-btn').click(function(event) {
+        event.preventDefault();
+        game._exportVideo();
+      });
+
+      // Format select change handler
+      game._$exportControls.find('.blockrain-format-select').change(function() {
+        game._updateCodecOptions();
+      });
+
+      // Initialize codec options
+      game._updateCodecOptions();
+
+      // Update current selection display
+      game._updateCurrentSelection();
+
+      // Bind format and codec change events to update current selection
+      game._$exportControls.find('.blockrain-format-select').change(function() {
+        game._updateCodecOptions();
+        game._updateCurrentSelection();
+      });
+
+      game._$exportControls.find('.blockrain-codec-select').change(function() {
+        game._updateCurrentSelection();
+      });
+    },
+
+    _updateCodecOptions: function() {
+      var game = this;
+      var format = game._$exportControls.find('.blockrain-format-select').val();
+      var codecSelect = game._$exportControls.find('.blockrain-codec-select');
+
+      // Clear existing options
+      codecSelect.empty();
+
+      // Add codec options based on format
+      if (format === 'mp4' || format === 'mkv') {
+        codecSelect.append('<option value="h264">H.264</option>');
+        codecSelect.append('<option value="h265">H.265</option>');
+      } else if (format === 'webm') {
+        codecSelect.append('<option value="vp8">VP8</option>');
+        codecSelect.append('<option value="vp9">VP9</option>');
+      }
+    },
+
+    _updateCurrentSelection: function() {
+      var game = this;
+      var format = game._$exportControls.find('.blockrain-format-select').val();
+      var codec = game._$exportControls.find('.blockrain-codec-select').val();
+
+      // Update selected format display
+      game._$exportControls.find('.blockrain-selected-format').text(format.toUpperCase());
+
+      // Update selected codec display
+      var codecText = '';
+      if (codec === 'h264') {
+        codecText = 'H.264';
+      } else if (codec === 'h265') {
+        codecText = 'H.265';
+      } else if (codec === 'vp8') {
+        codecText = 'VP8';
+      } else if (codec === 'vp9') {
+        codecText = 'VP9';
+      }
+      game._$exportControls.find('.blockrain-selected-codec').text(codecText);
+    },
+
+    _startRecording: function() {
+      var game = this;
+
+      // Get the canvas element
+      var canvas = game._canvas;
+
+      // Create a MediaRecorder instance
+      var stream = canvas.captureStream(60); // 60fps
+      var options = {
+        mimeType: 'video/webm;codecs=vp9',
+        videoBitsPerSecond: 5000000 // 5Mbps
+      };
+
+      game._recorder = new MediaRecorder(stream, options);
+      game._recordingChunks = [];
+
+      // Event handlers for MediaRecorder
+      game._recorder.ondataavailable = function(event) {
+        if (event.data.size > 0) {
+          game._recordingChunks.push(event.data);
+        }
+      };
+
+      game._recorder.onstop = function() {
+        // Recording stopped
+      };
+
+      // Start recording
+      game._recorder.start();
+      game._isRecording = true;
+
+      // Update UI
+      game._$recordingControls.find('.blockrain-record-btn').hide();
+      game._$recordingControls.find('.blockrain-stop-record-btn').show();
+      game._$recordingControls.find('.blockrain-stop-record-btn').addClass('recording-active');
+      game._$recordingStatus.show();
+    },
+
+    _stopRecording: function() {
+      var game = this;
+
+      if (game._recorder && game._isRecording) {
+        // Stop recording
+        game._recorder.stop();
+        game._isRecording = false;
+
+        // Update UI
+      game._$recordingControls.find('.blockrain-record-btn').show();
+      game._$recordingControls.find('.blockrain-stop-record-btn').hide();
+      game._$recordingControls.find('.blockrain-stop-record-btn').removeClass('recording-active');
+      game._$recordingStatus.hide();
+      }
+    },
+
+    _exportVideo: function() {
+      var game = this;
+
+      if (game._recordingChunks.length > 0) {
+        // Get selected format and codec
+        var format = game._$exportControls.find('.blockrain-format-select').val();
+        var codec = game._$exportControls.find('.blockrain-codec-select').val();
+
+        // Create a blob from the recording chunks
+        var mimeType = '';
+        if (format === 'mp4') {
+          mimeType = codec === 'h264' ? 'video/mp4;codecs=avc1' : 'video/mp4;codecs=hevc';
+        } else if (format === 'webm') {
+          mimeType = codec === 'vp8' ? 'video/webm;codecs=vp8' : 'video/webm;codecs=vp9';
+        } else if (format === 'mkv') {
+          mimeType = codec === 'h264' ? 'video/x-matroska;codecs=avc1' : 'video/x-matroska;codecs=hevc';
+        }
+
+        var blob = new Blob(game._recordingChunks, { type: mimeType });
+
+        // Create a download link
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+
+        // Generate filename with timestamp and score
+        var timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        var score = game._filled.score;
+        a.download = 'blockrain-' + timestamp + '-score-' + score + '.' + format;
+
+        // Trigger download
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        // Release the URL object
+        URL.revokeObjectURL(url);
+
+        // Hide export controls
+        game._$exportControls.removeClass('active');
+      }
     },
 
 
