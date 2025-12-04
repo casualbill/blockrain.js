@@ -194,10 +194,396 @@
 </footer>
 
 
+<section id="shape-editor">
+  <header>
+    <h1>自定义形状编辑器</h1>
+    <p>创建并编辑你自己的方块形状</p>
+  </header>
+  <article>
+    <div class="editor-container">
+      <div class="editor-left">
+        <div class="shape-grid" id="shape-grid"></div>
+        <div class="rotation-controls">
+          <h3>旋转预览</h3>
+          <div class="rotation-previews" id="rotation-previews"></div>
+        </div>
+      </div>
+      <div class="editor-right">
+        <div class="shape-info">
+          <h3>形状信息</h3>
+          <input type="text" id="shape-name" placeholder="形状名称">
+          <div class="block-count" id="block-count">方块数量: 0</div>
+          <div class="validation-message" id="validation-message"></div>
+        </div>
+        <div class="editor-controls">
+          <button id="clear-shape">清空</button>
+          <button id="save-shape">保存形状</button>
+        </div>
+        <div class="custom-shapes-list">
+          <h3>已保存的形状</h3>
+          <div class="shapes-list" id="shapes-list"></div>
+        </div>
+      </div>
+    </div>
+  </article>
+</section>
+
+
 <script src="assets/js/jquery-1.11.1.min.js"></script>
 <script src="src/blockrain.jquery.libs.js"></script>
 <script src="src/blockrain.jquery.src.js"></script>
 <script src="src/blockrain.jquery.themes.js"></script>
+
+  <!-- Initialize Shape Editor -->
+  <script>
+    $(document).ready(function() {
+      // Initialize shape editor
+      initShapeEditor();
+    });
+  </script>
+  
+  <!-- Shape Editor Script -->
+  <script>
+    function initShapeEditor() {
+      const gridSize = 5;
+      let currentShape = [];
+      let selectedCells = new Set();
+      
+      // Create grid
+      const gridContainer = $('#shape-grid');
+      for (let row = 0; row < gridSize; row++) {
+        for (let col = 0; col < gridSize; col++) {
+          const cell = $('<div>').addClass('grid-cell').data('row', row).data('col', col);
+          if (row === 2 && col === 2) {
+            cell.addClass('center');
+          }
+          cell.click(function() {
+            toggleCell(row, col);
+          });
+          gridContainer.append(cell);
+        }
+      }
+      
+      // Clear shape button
+      $('#clear-shape').click(function() {
+        clearShape();
+      });
+      
+      // Save shape button
+      $('#save-shape').click(function() {
+        saveShape();
+      });
+      
+      // Load existing shapes
+      loadSavedShapes();
+      
+      function toggleCell(row, col) {
+        const key = `${row},${col}`;
+        const cell = $(`.grid-cell[data-row="${row}"][data-col="${col}"]`);
+        
+        if (selectedCells.has(key)) {
+          selectedCells.delete(key);
+          cell.removeClass('active');
+        } else {
+          if (selectedCells.size < 6) {
+            selectedCells.add(key);
+            cell.addClass('active');
+          } else {
+            showValidationMessage('最多只能选择6个方块', 'error');
+          }
+        }
+        
+        updateBlockCount();
+        updateRotationPreviews();
+        validateShape();
+      }
+      
+      function clearShape() {
+        selectedCells.clear();
+        $('.grid-cell').removeClass('active');
+        updateBlockCount();
+        updateRotationPreviews();
+        showValidationMessage('形状已清除', 'success');
+      }
+      
+      function updateBlockCount() {
+        $('#block-count').text(selectedCells.size);
+      }
+      
+      function validateShape() {
+        const blocks = Array.from(selectedCells).map(key => {
+          const [row, col] = key.split(',').map(Number);
+          return { row, col };
+        });
+        
+        if (blocks.length === 0) {
+          showValidationMessage('请选择至少1个方块', 'error');
+          return false;
+        }
+        
+        if (blocks.length > 6) {
+          showValidationMessage('最多只能选择6个方块', 'error');
+          return false;
+        }
+        
+        // Check connectivity
+        if (!areBlocksConnected(blocks)) {
+          showValidationMessage('所有方块必须连接在一起', 'error');
+          return false;
+        }
+        
+        showValidationMessage('形状有效', 'success');
+        return true;
+      }
+      
+      function areBlocksConnected(blocks) {
+        if (blocks.length <= 1) return true;
+        
+        const visited = new Set();
+        const queue = [blocks[0]];
+        visited.add(`${blocks[0].row},${blocks[0].col}`);
+        
+        while (queue.length > 0) {
+          const current = queue.shift();
+          
+          // Check all four directions
+          const directions = [
+            { row: current.row - 1, col: current.col }, // up
+            { row: current.row + 1, col: current.col }, // down
+            { row: current.row, col: current.col - 1 }, // left
+            { row: current.row, col: current.col + 1 }  // right
+          ];
+          
+          for (const dir of directions) {
+            const key = `${dir.row},${dir.col}`;
+            if (!visited.has(key) && blocks.some(b => b.row === dir.row && b.col === dir.col)) {
+              visited.add(key);
+              queue.push(dir);
+            }
+          }
+        }
+        
+        return visited.size === blocks.length;
+      }
+      
+      function updateRotationPreviews() {
+        const blocks = Array.from(selectedCells).map(key => {
+          const [row, col] = key.split(',').map(Number);
+          return { row, col };
+        });
+        
+        if (blocks.length === 0) {
+          $('.rotation-preview').empty();
+          return;
+        }
+        
+        // Generate all four rotations
+        const rotations = generateAllRotations(blocks);
+        
+        // Update previews
+        for (let i = 0; i < 4; i++) {
+          const preview = $(`.rotation-preview[data-rotation="${i}"]`);
+          preview.empty();
+          
+          const rotatedBlocks = rotations[i] || [];
+          
+          // Create empty grid
+          for (let row = 0; row < gridSize; row++) {
+            for (let col = 0; col < gridSize; col++) {
+              const cell = $('<div>').addClass('rotation-preview-cell');
+              
+              // Check if this cell is filled
+              if (rotatedBlocks.some(b => b.row === row && b.col === col)) {
+                cell.addClass('filled');
+              }
+              
+              preview.append(cell);
+            }
+          }
+        }
+      }
+      
+      function generateAllRotations(blocks) {
+        const rotations = [blocks];
+        
+        // Generate up to 3 more unique rotations
+        for (let i = 0; i < 3; i++) {
+          const lastRotation = rotations[rotations.length - 1];
+          const newRotation = rotateShape(lastRotation);
+          
+          // Check if this rotation is already in the list
+          const isDuplicate = rotations.some(rot => 
+            JSON.stringify(rot) === JSON.stringify(newRotation)
+          );
+          
+          if (!isDuplicate) {
+            rotations.push(newRotation);
+          }
+        }
+        
+        // Fill with duplicates if less than 4 rotations
+        while (rotations.length < 4) {
+          rotations.push(rotations[rotations.length - 1]);
+        }
+        
+        return rotations;
+      }
+      
+      function rotateShape(blocks) {
+        // Rotate 90 degrees clockwise around center (2,2)
+        return blocks.map(block => {
+          const dx = block.col - 2;
+          const dy = block.row - 2;
+          return {
+            row: 2 - dx,
+            col: 2 + dy
+          };
+        });
+      }
+      
+      function saveShape() {
+        const shapeName = $('#shape-name').val().trim();
+        
+        if (!shapeName) {
+          showValidationMessage('请输入形状名称', 'error');
+          return;
+        }
+        
+        if (!validateShape()) {
+          return;
+        }
+        
+        // Convert selected cells to shape data
+        const blocks = Array.from(selectedCells).map(key => {
+          const [row, col] = key.split(',').map(Number);
+          return { row, col };
+        });
+        
+        // Normalize shape
+        const normalizedShape = normalizeShape(blocks);
+        
+        // Create shape data object
+        const shapeData = {
+          name: shapeName,
+          blocks: normalizedShape,
+          enabled: true,
+          probability: 1
+        };
+        
+        // Get existing shapes
+        let customShapes = JSON.parse(localStorage.getItem('blockrain_custom_shapes')) || [];
+        
+        // Check if shape name already exists
+        const existingIndex = customShapes.findIndex(shape => shape.name === shapeName);
+        
+        if (existingIndex >= 0) {
+          // Update existing shape
+          customShapes[existingIndex] = shapeData;
+          showValidationMessage('形状已更新', 'success');
+        } else {
+          // Check if we've reached the maximum number of shapes
+          if (customShapes.length >= 20) {
+            showValidationMessage('最多只能创建20个自定义形状，请删除一些旧形状', 'error');
+            return;
+          }
+          
+          // Add new shape
+          customShapes.push(shapeData);
+          showValidationMessage('形状已保存', 'success');
+        }
+        
+        // Save to localStorage
+        localStorage.setItem('blockrain_custom_shapes', JSON.stringify(customShapes));
+        
+        // Update UI
+        loadSavedShapes();
+        
+        // Clear current selection
+        clearShape();
+        $('#shape-name').val('');
+      }
+      
+      function normalizeShape(blocks) {
+        // Find min and max coordinates
+        const minRow = Math.min(...blocks.map(b => b.row));
+        const minCol = Math.min(...blocks.map(b => b.col));
+        
+        // Normalize to start at (0,0)
+        return blocks.map(b => ({
+          row: b.row - minRow,
+          col: b.col - minCol
+        }));
+      }
+      
+      function loadSavedShapes() {
+        const customShapes = JSON.parse(localStorage.getItem('blockrain_custom_shapes')) || [];
+        const shapesList = $('#shapes-list');
+        
+        shapesList.empty();
+        
+        if (customShapes.length === 0) {
+          shapesList.append('<p style="text-align: center; color: #bdc3c7;">暂无保存的自定义形状</p>');
+          return;
+        }
+        
+        customShapes.forEach((shape, index) => {
+          const shapeItem = $('<div>').addClass('shape-item');
+          
+          const shapeInfo = $('<div>');
+          shapeInfo.append($('<h4>').text(shape.name));
+          shapeInfo.append($('<p>').text(`方块数: ${shape.blocks.length}`));
+          
+          const shapeControls = $('<div>').addClass('shape-item-controls');
+          
+          const toggleBtn = $('<button>').addClass('toggle-btn')
+            .text(shape.enabled ? '禁用' : '启用')
+            .click(function() {
+              toggleShapeEnabled(index);
+            });
+          
+          if (!shape.enabled) {
+            toggleBtn.addClass('disabled');
+          }
+          
+          const deleteBtn = $('<button>').addClass('delete-btn')
+            .text('删除')
+            .click(function() {
+              deleteShape(index);
+            });
+          
+          shapeControls.append(toggleBtn, deleteBtn);
+          shapeItem.append(shapeInfo, shapeControls);
+          shapesList.append(shapeItem);
+        });
+      }
+      
+      function toggleShapeEnabled(index) {
+        const customShapes = JSON.parse(localStorage.getItem('blockrain_custom_shapes')) || [];
+        customShapes[index].enabled = !customShapes[index].enabled;
+        localStorage.setItem('blockrain_custom_shapes', JSON.stringify(customShapes));
+        loadSavedShapes();
+      }
+      
+      function deleteShape(index) {
+        if (confirm('确定要删除这个形状吗？')) {
+          const customShapes = JSON.parse(localStorage.getItem('blockrain_custom_shapes')) || [];
+          customShapes.splice(index, 1);
+          localStorage.setItem('blockrain_custom_shapes', JSON.stringify(customShapes));
+          loadSavedShapes();
+          showValidationMessage('形状已删除', 'success');
+        }
+      }
+      
+      function showValidationMessage(message, type) {
+        const messageDiv = $('#validation-message');
+        messageDiv.text(message).removeClass('success error').addClass(type).show();
+        
+        setTimeout(() => {
+          messageDiv.fadeOut();
+        }, 3000);
+      }
+    }
+  </script>
 
 <script>
   var $cover = $('#cover-tetris').blockrain({
