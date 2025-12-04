@@ -16,6 +16,11 @@
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
 
+      // 时间回溯相关配置
+      rewindMaxTime: 10, // 最大回溯时间（秒）
+      rewindMaxCount: 2, // 每局游戏最大回溯次数
+      rewindSaveInterval: 1, // 游戏状态保存间隔（秒）
+
       // Copy
       playText: 'Let\'s play some Tetris',
       playButtonText: 'Play',
@@ -52,9 +57,15 @@
       this.showGameOverMessage();
       this._board.gameover = true;
       this.options.onGameOver.call(this.element, this._filled.score);
+
+      // 游戏结束时停止保存状态
+      this._stopRewindStateSaving();
     },
 
     _doStart: function() {
+      // 清除所有回溯记录
+      this._clearRewindStates();
+      
       this._filled.clearAll();
       this._filled._resetScore();
       this._board.cur = this._board.nextShape();
@@ -67,6 +78,9 @@
       this._$start.fadeOut(150);
       this._$gameover.fadeOut(150);
       this._$score.fadeIn(150);
+
+      // 开始定时保存游戏状态
+      this._startRewindStateSaving();
     },
 
 
@@ -195,6 +209,11 @@
     _$score: null,
     _$scoreText: null,
 
+
+    // 时间回溯相关属性
+    _rewindStates: [], // 保存的游戏状态数组
+    _rewindCount: 0, // 当前局游戏已使用的回溯次数
+    _rewindInterval: null, // 状态保存定时器
 
     // Canvas
     _canvas: null,
@@ -1476,6 +1495,7 @@
           case 38: /*up*/     game._board.cur.rotate('right'); break;
           case 88: /*x*/      game._board.cur.rotate('right'); break;
           case 90: /*z*/      game._board.cur.rotate('left'); break;
+          case 32: /*space*/  game._timeRewind(); break; // 添加时间回溯功能
           default: caught = false;
         }
         if (caught) evt.preventDefault();
@@ -1542,6 +1562,142 @@
       }
     },
 
+
+    // 时间回溯核心方法
+    _timeRewind: function() {
+      // 检查回溯禁用条件
+      if (!this._board.started || this._board.gameover || this._board.paused) {
+        return;
+      }
+
+      // 检查回溯次数是否已达上限
+      if (this._rewindCount >= this.options.rewindMaxCount) {
+        // 可以在这里添加提示信息，告知玩家已用完回溯次数
+        return;
+      }
+
+      // 检查是否有可回溯的状态
+      if (this._rewindStates.length === 0) {
+        // 可以在这里添加提示信息，告知玩家没有可回溯的状态
+        return;
+      }
+
+      // 恢复最近的游戏状态
+      var lastState = this._rewindStates.pop();
+      this._restoreGameState(lastState);
+
+      // 增加回溯次数
+      this._rewindCount++;
+
+      // 回溯后暂停游戏
+      this.pause();
+
+      // 可以在这里添加提示信息，告知玩家回溯成功
+    },
+
+    // 保存游戏状态
+    _saveGameState: function() {
+      // 构建游戏状态对象
+      var gameState = {
+        timestamp: Date.now(),
+        score: this._filled.score,
+        filledBlocks: this._filled.data.slice(), // 复制已填充的方块数组
+        currentShape: this._board.cur ? {
+          shape: this._board.cur.shape,
+          orientation: this._board.cur.orientation,
+          x: this._board.cur.x,
+          y: this._board.cur.y,
+          blockType: this._board.cur.blockType
+        } : null,
+        nextShape: this._board.next ? {
+          shape: this._board.next.shape,
+          orientation: this._board.next.orientation,
+          x: this._board.next.x,
+          y: this._board.next.y,
+          blockType: this._board.next.blockType
+        } : null,
+        dropDelay: this._board.dropDelay
+      };
+
+      // 添加到状态数组
+      this._rewindStates.push(gameState);
+
+      // 移除超过最大回溯时间的状态
+      var maxTime = this.options.rewindMaxTime * 1000;
+      var currentTime = Date.now();
+      this._rewindStates = this._rewindStates.filter(function(state) {
+        return currentTime - state.timestamp <= maxTime;
+      });
+    },
+
+    // 恢复游戏状态
+    _restoreGameState: function(gameState) {
+      // 恢复分数
+      this._filled.score = gameState.score;
+
+      // 恢复已填充的方块
+      this._filled.data = gameState.filledBlocks.slice();
+
+      // 恢复当前形状
+      if (gameState.currentShape) {
+        // 使用_shapeFactory创建形状对象
+        this._board.cur = this._shapeFactory[gameState.currentShape.blockType]();
+        // 设置形状属性
+        this._board.cur.shape = gameState.currentShape.shape;
+        this._board.cur.orientation = gameState.currentShape.orientation;
+        this._board.cur.x = gameState.currentShape.x;
+        this._board.cur.y = gameState.currentShape.y;
+        this._board.cur.blockType = gameState.currentShape.blockType;
+        // 初始化形状
+        this._board.cur.init();
+      }
+
+      // 恢复下一个形状
+      if (gameState.nextShape) {
+        // 使用_shapeFactory创建形状对象
+        this._board.next = this._shapeFactory[gameState.nextShape.blockType]();
+        // 设置形状属性
+        this._board.next.shape = gameState.nextShape.shape;
+        this._board.next.orientation = gameState.nextShape.orientation;
+        this._board.next.x = gameState.nextShape.x;
+        this._board.next.y = gameState.nextShape.y;
+        this._board.next.blockType = gameState.nextShape.blockType;
+        // 初始化形状
+        this._board.next.init();
+      }
+
+      // 恢复下落延迟
+      this._board.dropDelay = gameState.dropDelay;
+
+      // 重新渲染游戏
+      this._board.render(true);
+    },
+
+    // 清除所有回溯状态
+    _clearRewindStates: function() {
+      this._rewindStates = [];
+      this._rewindCount = 0;
+    },
+
+    // 开始定时保存游戏状态
+    _startRewindStateSaving: function() {
+      // 停止之前的定时器
+      this._stopRewindStateSaving();
+
+      // 开始新的定时器
+      var game = this;
+      this._rewindInterval = setInterval(function() {
+        game._saveGameState();
+      }, this.options.rewindSaveInterval * 1000);
+    },
+
+    // 停止定时保存游戏状态
+    _stopRewindStateSaving: function() {
+      if (this._rewindInterval) {
+        clearInterval(this._rewindInterval);
+        this._rewindInterval = null;
+      }
+    },
 
     _setupTouchControls: function(enable) {
 
