@@ -161,3 +161,152 @@
   margin-bottom: 30px;
 }
 
+/* Versus Mode */
+.blockrain-versus-container {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.blockrain-player-area {
+  flex: 1;
+  min-width: 300px;
+  max-width: 500px;
+  margin: 0 20px 20px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.player-title {
+  text-align: center;
+  color: #333;
+  font-size: 24px;
+  margin-bottom: 15px;
+  font-weight: bold;
+}
+
+.player1 .player-title {
+  color: #e74c3c;
+}
+
+.player2 .player-title {
+  color: #3498db;
+}
+
+.blockrain-game {
+  width: 100%;
+  height: 400px;
+  margin: 0 auto 15px;
+  border: 2px solid #333;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.player-score {
+  text-align: center;
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.blockrain-instructions {
+  flex: 100%;
+  display: flex;
+  justify-content: space-around;
+  margin: 20px 0;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+}
+
+.player1-controls, .player2-controls {
+  text-align: center;
+}
+
+.player1-controls h3 {
+  color: #e74c3c;
+  margin-bottom: 10px;
+}
+
+.player2-controls h3 {
+  color: #3498db;
+  margin-bottom: 10px;
+}
+
+.blockrain-status {
+  flex: 100%;
+  text-align: center;
+  font-size: 20px;
+  font-weight: bold;
+  color: #333;
+  margin: 20px 0;
+}
+
+.blockrain-play-btn, .blockrain-pause-btn, .blockrain-resume-btn, .blockrain-restart-btn {
+  display: block;
+  margin: 20px auto;
+  padding: 15px 40px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  background: #3498db;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.blockrain-play-btn:hover, .blockrain-pause-btn:hover, .blockrain-resume-btn:hover, .blockrain-restart-btn:hover {
+  background: #2980b9;
+}
+
+.blockrain-winner {
+  flex: 100%;
+  text-align: center;
+  padding: 30px;
+  background: rgba(46, 204, 113, 0.1);
+  border-radius: 10px;
+  margin: 20px 0;
+}
+
+.blockrain-winner h2 {
+  color: #2ecc71;
+  font-size: 32px;
+  margin-bottom: 20px;
+}
+
+.blockrain-winner p {
+  font-size: 18px;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+#versus-mode {
+  padding: 40px 20px;
+  background: #f8f9fa;
+  margin-top: 40px;
+}
+
+#versus-mode header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+#versus-mode h1 {
+  color: #333;
+  font-size: 36px;
+  margin-bottom: 10px;
+}
+
+.versus-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
