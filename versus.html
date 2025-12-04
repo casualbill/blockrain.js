@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Blockrain.js - Local Versus Mode</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui" />
+  <link href='http://fonts.googleapis.com/css?family=Play:400,700' rel='stylesheet' type='text/css'>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="src/blockrain.css">
+  <style>
+    .versus-container {
+      display: flex;
+      justify-content: space-around;
+      align-items: flex-start;
+      margin: 20px;
+    }
+    .player-area {
+      text-align: center;
+    }
+    .player-title {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .game-container {
+      width: 300px;
+      height: 600px;
+      margin: 0 auto 20px;
+    }
+    .controls {
+      font-size: 14px;
+      color: #666;
+    }
+    .controls h3 {
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    .controls ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .controls li {
+      margin-bottom: 5px;
+    }
+    .winner {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      font-size: 36px;
+      font-weight: bold;
+      padding: 20px;
+      border-radius: 10px;
+      z-index: 1000;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <header style="text-align: center; padding: 20px;">
+    <h1>Blockrain.js - Local Versus Mode</h1>
+    <p>Player 1 vs Player 2</p>
+  </header>
+
+  <div class="versus-container">
+    <div class="player-area">
+      <div class="player-title">Player 1</div>
+      <div class="game-container" id="game1"></div>
+      <div class="controls">
+        <h3>Controls</h3>
+        <ul>
+          <li>← →: Move left/right</li>
+          <li>↑: Rotate</li>
+          <li>↓: Drop</li>
+          <li>Z: Rotate left</li>
+          <li>X: Rotate right</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="player-area">
+      <div class="player-title">Player 2</div>
+      <div class="game-container" id="game2"></div>
+      <div class="controls">
+        <h3>Controls</h3>
+        <ul>
+          <li>A D: Move left/right</li>
+          <li>W: Rotate</li>
+          <li>S: Drop</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="winner" id="winner"></div>
+
+  <script src="assets/js/jquery-1.11.1.min.js"></script>
+  <script src="src/blockrain.jquery.libs.js"></script>
+  <script src="src/blockrain.jquery.src.js"></script>
+  <script src="src/blockrain.jquery.themes.js"></script>
+
+  <script>
+    var game1, game2;
+    var gameOver = false;
+
+    // 初始化游戏
+    function initGames() {
+      game1 = $('#game1').blockrain({
+        speed: 20,
+        theme: 'modern',
+        player: 1,
+        onGameOver: function(score) {
+          if (!gameOver) {
+            gameOver = true;
+            showWinner('Player 2');
+          }
+        }
+      });
+
+      game2 = $('#game2').blockrain({
+        speed: 20,
+        theme: 'candy',
+        player: 2,
+        onGameOver: function(score) {
+          if (!gameOver) {
+            gameOver = true;
+            showWinner('Player 1');
+          }
+        }
+      });
+    }
+
+    // 显示获胜者
+    function showWinner(player) {
+      $('#winner').text(player + ' Wins!').show();
+    }
+
+    // 开始游戏
+    function startGames() {
+      game1.blockrain('start');
+      game2.blockrain('start');
+    }
+
+    // 暂停游戏
+    function pauseGames() {
+      game1.blockrain('pause');
+      game2.blockrain('pause');
+    }
+
+    // 恢复游戏
+    function resumeGames() {
+      game1.blockrain('resume');
+      game2.blockrain('resume');
+    }
+
+    // 初始化并开始游戏
+    initGames();
+    startGames();
+
+    // 暂停/恢复按键处理 (空格键)
+    $(document).keydown(function(evt) {
+      if (evt.keyCode === 32) {
+        evt.preventDefault();
+        if (game1.blockrain('_board').paused) {
+          resumeGames();
+        } else {
+          pauseGames();
+        }
+      }
+    });
+  </script>
+</body>
+</html>

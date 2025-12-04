@@ -15,6 +15,7 @@
       difficulty: 'normal', // Difficulty (normal|nice|evil).
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
+      player: 1, // Player number (1 or 2) for versus mode
 
       // Copy
       playText: 'Let\'s play some Tetris',
@@ -1460,23 +1461,24 @@
         if( ! game._board.cur ) { return true; }
         var caught = false;
 
-        caught = true;
-        if (game.options.asdwKeys) {
-          switch(evt.keyCode) {
-            case 65: /*a*/    moveLeft(true); break;
-            case 68: /*d*/    moveRight(true); break;
-            case 83: /*s*/    drop(true); break;
-            case 87: /*w*/    game._board.cur.rotate('right'); break;
-          }
-        }
+        // 调试信息：输出玩家标识和按键代码
+        console.log('Player ' + game.options.player + ' pressed key: ' + evt.keyCode);
+
+        // 直接处理所有按键，但根据玩家标识过滤
         switch(evt.keyCode) {
-          case 37: /*left*/   moveLeft(true); break;
-          case 39: /*right*/  moveRight(true); break;
-          case 40: /*down*/   drop(true); break;
-          case 38: /*up*/     game._board.cur.rotate('right'); break;
-          case 88: /*x*/      game._board.cur.rotate('right'); break;
-          case 90: /*z*/      game._board.cur.rotate('left'); break;
-          default: caught = false;
+          // 玩家1的按键：方向键 + X/Z
+          case 37: /*left*/   if (game.options.player === 1) { moveLeft(true); caught = true; } break;
+          case 39: /*right*/  if (game.options.player === 1) { moveRight(true); caught = true; } break;
+          case 40: /*down*/   if (game.options.player === 1) { drop(true); caught = true; } break;
+          case 38: /*up*/     if (game.options.player === 1) { game._board.cur.rotate('right'); caught = true; } break;
+          case 88: /*x*/      if (game.options.player === 1) { game._board.cur.rotate('right'); caught = true; } break;
+          case 90: /*z*/      if (game.options.player === 1) { game._board.cur.rotate('left'); caught = true; } break;
+
+          // 玩家2的按键：WASD
+          case 65: /*a*/      if (game.options.player === 2) { moveLeft(true); caught = true; } break;
+          case 68: /*d*/      if (game.options.player === 2) { moveRight(true); caught = true; } break;
+          case 83: /*s*/      if (game.options.player === 2) { drop(true); caught = true; } break;
+          case 87: /*w*/      if (game.options.player === 2) { game._board.cur.rotate('right'); caught = true; } break;
         }
         if (caught) evt.preventDefault();
         return !caught;
@@ -1487,19 +1489,17 @@
         if( ! game._board.cur ) { return true; }
         var caught = false;
 
-        caught = true;
-        if (game.options.asdwKeys) {
-          switch(evt.keyCode) {
-            case 65: /*a*/    moveLeft(false); break;
-            case 68: /*d*/    moveRight(false); break;
-            case 83: /*s*/    drop(false); break;
-          }
-        }
+        // 直接处理所有按键释放，但根据玩家标识过滤
         switch(evt.keyCode) {
-          case 37: /*left*/   moveLeft(false); break;
-          case 39: /*right*/  moveRight(false); break;
-          case 40: /*down*/   drop(false); break;
-          default: caught = false;
+          // 玩家1的按键：方向键
+          case 37: /*left*/   if (game.options.player === 1) { moveLeft(false); caught = true; } break;
+          case 39: /*right*/  if (game.options.player === 1) { moveRight(false); caught = true; } break;
+          case 40: /*down*/   if (game.options.player === 1) { drop(false); caught = true; } break;
+
+          // 玩家2的按键：WASD
+          case 65: /*a*/      if (game.options.player === 2) { moveLeft(false); caught = true; } break;
+          case 68: /*d*/      if (game.options.player === 2) { moveRight(false); caught = true; } break;
+          case 83: /*s*/      if (game.options.player === 2) { drop(false); caught = true; } break;
         }
         if (caught) evt.preventDefault();
         return !caught;
