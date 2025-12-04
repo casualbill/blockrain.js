@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Blockrain.js - Custom Area Editor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui" />
+  <link href='http://fonts.googleapis.com/css?family=Play:400,700' rel='stylesheet' type='text/css'>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="src/blockrain.css">
+  <style>
+    #editor-container {
+      margin: 20px auto;
+      width: 80%;
+      max-width: 600px;
+    }
+    
+    #editor-grid {
+      display: inline-block;
+      border: 2px solid #333;
+      margin-bottom: 20px;
+    }
+    
+    .editor-row {
+      display: flex;
+    }
+    
+    .editor-cell {
+      width: 20px;
+      height: 20px;
+      border: 1px solid #ccc;
+      cursor: pointer;
+      background-color: #fff;
+    }
+    
+    .editor-cell.unavailable {
+      background-color: #333;
+    }
+    
+    .editor-cell:hover {
+      background-color: #ddd;
+    }
+    
+    .editor-cell.unavailable:hover {
+      background-color: #666;
+    }
+    
+    #editor-controls {
+      margin-top: 20px;
+    }
+    
+    #editor-controls button {
+      margin-right: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    
+    #editor-controls input {
+      margin-right: 10px;
+      padding: 10px;
+      font-size: 16px;
+    }
+    
+    #editor-message {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    
+    #editor-message.success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    
+    #editor-message.error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    
+    #saved-areas {
+      margin-top: 20px;
+    }
+    
+    .saved-area {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .saved-area button {
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="editor-container">
+    <h1>Custom Area Editor</h1>
+    <p>Click on cells to toggle availability (white = available, black = unavailable)</p>
+    
+    <div id="editor-grid"></div>
+    
+    <div id="editor-controls">
+      <input type="text" id="area-name" placeholder="Area name" />
+      <button id="save-btn">Save Area</button>
+      <button id="load-btn">Load Area</button>
+      <button id="validate-btn">Validate Area</button>
+      <button id="clear-btn">Clear All</button>
+      <button id="default-btn">Default Area</button>
+    </div>
+    
+    <div id="editor-message"></div>
+    
+    <div id="saved-areas">
+      <h2>Saved Areas</h2>
+    </div>
+  </div>
+
+  <script src="assets/js/jquery-1.11.1.min.js"></script>
+  <script src="src/blockrain.jquery.libs.js"></script>
+  <script src="src/blockrain.jquery.src.js"></script>
+  <script src="src/blockrain.jquery.themes.js"></script>
+  <script src="src/blockrain.editor.js"></script>
+</body>
+</html>

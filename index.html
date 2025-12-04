@@ -198,6 +198,7 @@
 <script src="src/blockrain.jquery.libs.js"></script>
 <script src="src/blockrain.jquery.src.js"></script>
 <script src="src/blockrain.jquery.themes.js"></script>
+  <script src="src/blockrain.editor.js"></script>
 
 <script>
   var $cover = $('#cover-tetris').blockrain({
@@ -207,6 +208,117 @@
     autoBlockWidth: true,
     autoBlockSize: 25,
     theme: 'candy'
+  });
+
+  // 加载自定义区域列表
+  function loadCustomAreas() {
+    var areas = JSON.parse(localStorage.getItem('customAreas') || '[]');
+    var select = document.createElement('select');
+    select.id = 'customAreaSelect';
+    
+    // 添加默认选项
+    var defaultOption = document.createElement('option');
+    defaultOption.value = 'default';
+    defaultOption.textContent = '默认区域';
+    select.appendChild(defaultOption);
+    
+    // 添加自定义区域选项
+    areas.forEach(function(area, index) {
+      var option = document.createElement('option');
+      option.value = index;
+      option.textContent = area.name;
+      select.appendChild(option);
+    });
+    
+    // 找到合适的位置插入选择器
+    var demoContainer = document.getElementById('tetris-demo');
+    var selectorDiv = document.createElement('div');
+    selectorDiv.id = 'customAreaSelector';
+    selectorDiv.innerHTML = '<h3>选择游戏区域：</h3>';
+    selectorDiv.appendChild(select);
+    demoContainer.parentNode.insertBefore(selectorDiv, demoContainer);
+  }
+
+  // 切换自定义区域
+  function switchCustomArea() {
+    var select = document.getElementById('customAreaSelect');
+    var selectedValue = select.value;
+    
+    if (selectedValue === 'default') {
+      // 使用默认区域
+      $demo.blockrain('option', 'customArea', null);
+    } else {
+      // 使用自定义区域
+      var areas = JSON.parse(localStorage.getItem('customAreas') || '[]');
+      var area = areas[selectedValue];
+      $demo.blockrain('option', 'customArea', area.grid);
+    }
+    
+    // 重新启动游戏以应用新区域
+    $demo.blockrain('restart');
+  }
+
+  // 页面加载完成后初始化
+  document.addEventListener('DOMContentLoaded', function() {
+    loadCustomAreas();
+    
+    // 绑定自定义区域选择事件
+    var select = document.getElementById('customAreaSelect');
+    if (select) {
+      select.addEventListener('change', switchCustomArea);
+    }
+    
+    // 添加显示编辑器按钮
+    var demoContainer = document.getElementById('tetris-demo');
+    var editorBtn = document.createElement('button');
+    editorBtn.id = 'show-editor-btn';
+    editorBtn.textContent = '自定义区域编辑器';
+    editorBtn.style.margin = '10px 0';
+    editorBtn.addEventListener('click', function() {
+      // 动态创建编辑器HTML
+      var editorHTML = '<div id="editor-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); z-index: 1000;">' +
+                        '<div id="editor-container" style="position: relative; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: white; padding: 20px; border-radius: 5px; max-width: 600px; max-height: 90vh; overflow-y: auto;">' +
+                        '<h2>自定义游戏区域编辑器</h2>' +
+                        '<div id="editorControls" style="margin-bottom: 10px;">' +
+                        '<button onclick="editor.clearGrid()">清空</button>' +
+                        '<button onclick="editor.resetGrid()">重置</button>' +
+                        '<button onclick="editor.saveArea()">保存区域</button>' +
+                        '<button onclick="editor.loadArea()">加载区域</button>' +
+                        '<button onclick="editor.deleteArea()">删除区域</button>' +
+                        '<button onclick="editor.exportArea()">导出区域</button>' +
+                        '<button onclick="editor.importArea()">导入区域</button>' +
+                        '</div>' +
+                        '<div id="editor-grid" style="margin-bottom: 20px; display: inline-block; border: 2px solid #333;"></div>' +
+                        '<style>' +
+                        '.editor-row { display: flex; }' +
+                        '.editor-cell { width: 20px; height: 20px; border: 1px solid #ccc; cursor: pointer; background-color: #fff; }' +
+                        '.editor-cell.unavailable { background-color: #333; }' +
+                        '.editor-cell:hover { background-color: #ddd; }' +
+                        '.editor-cell.unavailable:hover { background-color: #666; }' +
+                        '.saved-area { padding: 10px; border: 1px solid #ccc; border-radius: 5px; margin-bottom: 10px; cursor: pointer; }' +
+                        '.saved-area.selected { background-color: #e0e0e0; }' +
+                        '.editor-message { margin-top: 10px; padding: 10px; border-radius: 5px; }' +
+                        '.editor-message.success { background-color: #d4edda; color: #155724; }' +
+                        '.editor-message.error { background-color: #f8d7da; color: #721c24; }' +
+                        '</style>' +
+                        '<h3>已保存的区域：</h3>' +
+                        '<div id="saved-areas" style="margin-bottom: 20px;"></div>' +
+                        '<button onclick="document.getElementById(\'editor-overlay\').remove()">关闭编辑器</button>' +
+                        '</div>' +
+                        '</div>';
+      
+      // 插入编辑器HTML
+      document.body.insertAdjacentHTML('beforeend', editorHTML);
+      
+      // 初始化编辑器
+      if (typeof editor === 'undefined') {
+        editor = new BlockrainEditor();
+      } else {
+        editor.loadSavedAreas();
+      }
+    });
+    
+    demoContainer.parentNode.insertBefore(editorBtn, demoContainer.nextSibling);
   });
   
 
