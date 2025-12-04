@@ -565,6 +565,16 @@
         },
         rightZag: function() {
           return new Shape(game, game._shapes.rightZag, false, 'rightZag');
+        },
+        // 道具方块
+        stone: function() {
+          return new Shape(game, game._shapes.square, false, 'stone');
+        },
+        bomb: function() {
+          return new Shape(game, game._shapes.square, false, 'bomb');
+        },
+        laser: function() {
+          return new Shape(game, game._shapes.square, false, 'laser');
         }
       };
     },
@@ -623,7 +633,10 @@
             mod = this.asX(i);
             if (mod == 0) count = 0;
             if (this.data[i] && typeof this.data[i] !== 'undefined' && typeof this.data[i].blockType === 'string') {
-              count += 1;
+              // 只有非石化方块才会被计算在行清除中
+              if (!this.data[i].indestructible) {
+                count += 1;
+              }
             }
             if (mod == game._BLOCK_WIDTH - 1 && count == game._BLOCK_WIDTH) {
               rows.push(this.asY(i));
@@ -632,7 +645,7 @@
 
           for (i=0, len=rows.length; i<len; i++) {
             this._popRow(rows[i]);
-            game._board.lines++;
+            game._board.lines++; 
             if( game._board.lines % 10 == 0 && game._board.dropDelay > 1 ) {
               game._board.dropDelay *= 0.9;
             }
@@ -835,12 +848,69 @@
                 drop = false;
                 var blockIndex = 0;
                 for (var i=0; i<cur.blocksLen; i+=2) {
-                  game._filled.add(x + blocks[i], y + blocks[i+1], cur.blockType, cur.blockVariation, blockIndex, cur.orientation);
+                  var blockX = x + blocks[i];
+                  var blockY = y + blocks[i+1];
+                  
+                  game._filled.add(blockX, blockY, cur.blockType, cur.blockVariation, blockIndex, cur.orientation);
+                  
                   if (y + blocks[i] < 0) {
                     gameOver = true;
                   }
-                  blockIndex++;
+                  
+                  blockIndex++; 
                 }
+                
+                // 处理道具方块效果
+                if (cur.blockType === 'stone') {
+                  // 石化方块：标记为不可消除
+                  for (var i=0; i<cur.blocksLen; i+=2) {
+                    var blockX = x + blocks[i];
+                    var blockY = y + blocks[i+1];
+                    var index = game._filled.asIndex(blockX, blockY);
+                    if (game._filled.data[index]) {
+                      game._filled.data[index].indestructible = true;
+                    }
+                  }
+                } else if (cur.blockType === 'bomb') {
+                  // 爆炸方块：清除周围9个格子
+                  for (var i=0; i<cur.blocksLen; i+=2) {
+                    var centerX = x + blocks[i];
+                    var centerY = y + blocks[i+1];
+                    
+                    // 清除中心方块及其周围8个方块（共9个）
+                    for (var dx=-1; dx<=1; dx++) {
+                      for (var dy=-1; dy<=1; dy++) {
+                        var blockX = centerX + dx;
+                        var blockY = centerY + dy;
+                        
+                        // 检查方块是否在游戏区域内
+                        if (blockX >= 0 && blockX < game._BLOCK_WIDTH && blockY >= 0 && blockY < game._BLOCK_HEIGHT) {
+                          var index = game._filled.asIndex(blockX, blockY);
+                          delete game._filled.data[index];
+                        }
+                      }
+                    }
+                  }
+                } else if (cur.blockType === 'laser') {
+                  // 激光方块：清除所在行和列
+                  for (var i=0; i<cur.blocksLen; i+=2) {
+                    var laserX = x + blocks[i];
+                    var laserY = y + blocks[i+1];
+                    
+                    // 清除所在行的所有方块
+                    for (var dx=0; dx<game._BLOCK_WIDTH; dx++) {
+                      var index = game._filled.asIndex(dx, laserY);
+                      delete game._filled.data[index];
+                    }
+                    
+                    // 清除所在列的所有方块
+                    for (var dy=0; dy<game._BLOCK_HEIGHT; dy++) {
+                      var index = game._filled.asIndex(laserX, dy);
+                      delete game._filled.data[index];
+                    }
+                  }
+                }
+                
                 game._filled.checkForClears();
                 this.cur = this.nextShape();
                 this.renderChanged = true;
@@ -932,8 +1002,13 @@
             this.renderChanged = false;
             game._ctx.clearRect(0, 0, game._PIXEL_WIDTH, game._PIXEL_HEIGHT);
             game._drawBackground();
-            game._filled.draw();
-            this.cur.draw();
+            // 添加安全检查，确保对象不为null
+            if (game._filled && game._filled.draw) {
+              game._filled.draw();
+            }
+            if (this.cur && this.cur.draw) {
+              this.cur.draw();
+            }
           }
         },
 
@@ -1412,9 +1487,36 @@
     _randomShapes: function() {
       // Todo: The shapefuncs should be cached.
       var shapeFuncs = [];
-      $.each(this._shapeFactory, function(k,v) { shapeFuncs.push(v); });
-
-      return this._randChoice(shapeFuncs);
+      var normalShapes = [];
+      varpowerupShapes = [];
+      
+      // 分离普通方块和道具方块
+      $.each(this._shapeFactory, function(k,v) {
+        if (k === 'stone' || k === 'bomb' || k === 'laser') {
+          powerupShapes.push(v);
+        } else {
+          normalShapes.push(v);
+        }
+      });
+      
+      // 5%概率选择道具方块，否则选择普通方块
+      if (this._randInt(0, 19) === 0) { // 5%概率
+        // 确保powerupShapes数组不为空
+        if (powerupShapes.length > 0) {
+          return this._randChoice(powerupShapes);
+        } else {
+          // 如果powerupShapes数组为空，返回普通方块
+          return this._randChoice(normalShapes);
+        }
+      } else {
+        // 确保普通方块数组不为空
+        if (normalShapes.length > 0) {
+          return this._randChoice(normalShapes);
+        } else {
+          // 如果普通方块数组为空，返回道具方块
+          return this._randChoice(powerupShapes);
+        }
+      }
     },
 
 
