@@ -53,10 +53,20 @@
 
 </section>
 
+<section id="versus-mode">
+  <header>
+    <h1>双人对战模式</h1>
+  </header>
+  <div class="versus-container">
+    <div id="blockrain-versus"></div>
+  </div>
+</section>
+
 <script src="assets/js/jquery-1.11.1.min.js"></script>
 <script src="src/blockrain.jquery.libs.js"></script>
 <script src="src/blockrain.jquery.src.js"></script>
 <script src="src/blockrain.jquery.themes.js"></script>
+<script src="src/blockrain.versus.js"></script>
 
 <script>
 
@@ -70,6 +80,17 @@
     speed: 100,
     theme: 'candy',
     autoplay: true
+  });
+
+  // Initialize versus mode
+  $('#blockrain-versus').blockrainVersus({
+    player1Theme: 'retro',
+    player2Theme: 'modern',
+    difficulty: 'normal',
+    speed: 20,
+    onGameOver: function(winner) {
+      console.log('Winner: Player ' + winner);
+    }
   });
 
 </script>
