@@ -8,9 +8,9 @@
   },
   "scripts": {
     "build": "gulp build",
-    "dev": "gulp watch & http-server -p 3000 -c-1 -o",
+    "dev": "gulp watch & http-server -p 3001 -c-1 -o",
     "dev:watch": "gulp watch",
-    "dev:server": "http-server -p 3000 -c-1"
+    "dev:server": "http-server -p 3001 -c-1"
   },
   "devDependencies": {
     "gulp": "^4.0.2",

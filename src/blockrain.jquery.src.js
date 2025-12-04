@@ -405,6 +405,91 @@
         [2, -1,   1, -1,   1,  0,   0,  0],
         [0, -2,   0, -1,   1, -1,   1,  0],
         [0,  0,   1,  0,   1, -1,   2, -1]
+      ],
+      // 新增特殊方块
+      // 1. 单个方块
+      single: [
+        [0, 0],
+        [0, 0],
+        [0, 0],
+        [0, 0]
+      ],
+      // 2. 两个方块
+      double: [
+        [0, 0,   1, 0],
+        [0, 0,   0, -1],
+        [0, 0,   1, 0],
+        [0, 0,   0, -1]
+      ],
+      // 3. 三个方块 - 直线
+      tripleLine: [
+        [0, 0,   1, 0,   2, 0],
+        [0, 0,   0, -1,   0, -2],
+        [0, 0,   1, 0,   2, 0],
+        [0, 0,   0, -1,   0, -2]
+      ],
+      // 3. 三个方块 - L形（左）
+      tripleLeftL: [
+        [0, 0,   1, 0,   0, -1],
+        [0, 0,   0, -1,   1, -1],
+        [0, 0,   1, 0,   0, -1],
+        [0, 0,   0, -1,   1, -1]
+      ],
+      // 3. 三个方块 - L形（右）
+      tripleRightL: [
+        [0, 0,   1, 0,   1, -1],
+        [0, 0,   0, -1,   1, -1],
+        [0, 0,   1, 0,   1, -1],
+        [0, 0,   0, -1,   1, -1]
+      ],
+      // 4. 凹形方块
+      concave: [
+        [0, 0,   1, 0,   2, 0,   0, -1,   2, -1],
+        [0, 0,   0, -1,   0, -2,   1, -2,   2, -2],
+        [0, -1,   1, -1,   2, -1,   0, 0,   2, 0],
+        [2, 0,   2, -1,   2, -2,   1, -2,   0, -2]
+      ],
+      // 5. Z形方块（左变体）
+      zShapeLeft: [
+        [0, 0,   1, 0,   1, -1,   2, -1],
+        [0, 0,   0, -1,   1, -1,   1, -2],
+        [0, -1,   1, -1,   1, 0,   2, 0],
+        [0, 0,   0, -1,   0, -2,   1, -2]
+      ],
+      // 5. Z形方块（右变体）
+      zShapeRight: [
+        [0, 0,   1, 0,   0, -1,   1, -1],
+        [0, 0,   0, -1,   1, -1,   0, -2],
+        [0, -1,   1, -1,   0, 0,   1, 0],
+        [0, 0,   1, 0,   1, -1,   1, -2]
+      ],
+      // 6. T形方块（新变体）
+      tShapeNew: [
+        [0, 0,   1, 0,   2, 0,   1, -1],
+        [0, 0,   0, -1,   0, -2,   1, -1],
+        [0, -2,   1, -2,   2, -2,   1, -1],
+        [0, -1,   1, -1,   2, -1,   1, 0]
+      ],
+      // 7. L形方块（左新变体）
+      lShapeLeftNew: [
+        [0, 0,   1, 0,   2, 0,   0, -1],
+        [0, 0,   0, -1,   0, -2,   1, -2],
+        [0, -2,   1, -2,   2, -2,   2, -1],
+        [0, 0,   1, 0,   2, 0,   0, -1]
+      ],
+      // 7. L形方块（右新变体）
+      lShapeRightNew: [
+        [0, 0,   1, 0,   2, 0,   2, -1],
+        [0, 0,   1, 0,   2, 0,   0, -1],
+        [0, -2,   0, -1,   0, 0,   1, -2],
+        [0, -2,   1, -2,   2, -2,   2, -1]
+      ],
+      // 8. 十字形方块
+      cross: [
+        [1, 0,   0, -1,   1, -1,   2, -1,   1, -2],
+        [1, 0,   0, -1,   1, -1,   2, -1,   1, -2],
+        [1, 0,   0, -1,   1, -1,   2, -1,   1, -2],
+        [1, 0,   0, -1,   1, -1,   2, -1,   1, -2]
       ]
     },
 
@@ -516,7 +601,7 @@
                 i = 0,
                 index = 0;
 
-            for (; i<this.blocksLen; i += 2) {
+            for (; i<blocks.length; i += 2) {
               game._board.drawBlock(x + blocks[i], y + blocks[i+1], this.blockType, this.blockVariation, index, this.orientation, true);
               index++;
             }
@@ -565,6 +650,43 @@
         },
         rightZag: function() {
           return new Shape(game, game._shapes.rightZag, false, 'rightZag');
+        },
+        // 新增特殊方块的创建函数
+        single: function() {
+          return new Shape(game, game._shapes.single, true, 'single');
+        },
+        double: function() {
+          return new Shape(game, game._shapes.double, false, 'double');
+        },
+        tripleLine: function() {
+          return new Shape(game, game._shapes.tripleLine, false, 'tripleLine');
+        },
+        tripleLeftL: function() {
+          return new Shape(game, game._shapes.tripleLeftL, false, 'tripleLeftL');
+        },
+        tripleRightL: function() {
+          return new Shape(game, game._shapes.tripleRightL, false, 'tripleRightL');
+        },
+        concave: function() {
+          return new Shape(game, game._shapes.concave, false, 'concave');
+        },
+        zShapeLeft: function() {
+          return new Shape(game, game._shapes.zShapeLeft, false, 'zShapeLeft');
+        },
+        zShapeRight: function() {
+          return new Shape(game, game._shapes.zShapeRight, false, 'zShapeRight');
+        },
+        tShapeNew: function() {
+          return new Shape(game, game._shapes.tShapeNew, false, 'tShapeNew');
+        },
+        lShapeLeftNew: function() {
+          return new Shape(game, game._shapes.lShapeLeftNew, false, 'lShapeLeftNew');
+        },
+        lShapeRightNew: function() {
+          return new Shape(game, game._shapes.lShapeRightNew, false, 'lShapeRightNew');
+        },
+        cross: function() {
+          return new Shape(game, game._shapes.cross, true, 'cross');
         }
       };
     },
@@ -1410,11 +1532,30 @@
 
 
     _randomShapes: function() {
-      // Todo: The shapefuncs should be cached.
-      var shapeFuncs = [];
-      $.each(this._shapeFactory, function(k,v) { shapeFuncs.push(v); });
-
-      return this._randChoice(shapeFuncs);
+      // 将方块类型分为普通方块和特殊方块两组
+      var normalBlocks = [];
+      var specialBlocks = [];
+      
+      $.each(this._shapeFactory, function(k,v) {
+        // 普通方块：line, square, arrow, leftHook, rightHook, leftZag, rightZag
+        if (['line', 'square', 'arrow', 'leftHook', 'rightHook', 'leftZag', 'rightZag'].indexOf(k) !== -1) {
+          normalBlocks.push(v);
+        } else {
+          // 特殊方块：其他所有新添加的方块类型
+          specialBlocks.push(v);
+        }
+      });
+      
+      // 特殊方块的生成概率为普通方块的1/2
+      // 我们可以通过以下方式实现：
+      // 1. 生成一个0-2的随机数
+      // 2. 如果随机数为0，则选择特殊方块组
+      // 3. 如果随机数为1或2，则选择普通方块组
+      var randomNum = Math.floor(Math.random() * 3);
+      var selectedGroup = randomNum === 0 ? specialBlocks : normalBlocks;
+      
+      // 从选中的组中随机选择一个方块类型
+      return this._randChoice(selectedGroup);
     },
 
 
