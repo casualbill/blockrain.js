@@ -22,6 +22,9 @@
       gameOverText: 'Game Over',
       restartButtonText: 'Play Again',
       scoreText: 'Score',
+      backtrackText: 'Backtrack',
+      backtrackAvailableText: 'Available: ',
+      backtrackRangeText: 'Up to 10 seconds',
 
       // Basic Callbacks
       onStart: function(){},
@@ -32,6 +35,162 @@
       onPlaced: function(){},
       // When a line is made. Returns the number of lines, score assigned and total score
       onLine: function(lines, scoreIncrement, score){}
+    },
+
+    _updateBacktrackInfo: function() {
+      if (this._$backtrackCount) {
+        this._$backtrackCount.text(this._board.maxBacktrackCount - this._board.backtrackCount);
+      }
+    },
+
+    _saveGameState: function() {
+      var now = Date.now();
+      
+      // Only save state if enough time has passed since last save
+      if (now - this._board.lastStateSaveTime < this._board.stateSaveInterval) {
+        return;
+      }
+      
+      // Save current game state
+      var state = {
+        timestamp: now,
+        filledData: this._filled.data.slice(), // Copy of filled blocks
+        score: this._filled.score,
+        lines: this._board.lines,
+        dropDelay: this._board.dropDelay,
+        currentShape: {
+          blockType: this._board.cur.blockType,
+          blockVariation: this._board.cur.blockVariation,
+          x: this._board.cur.x,
+          y: this._board.cur.y,
+          orientation: this._board.cur.orientation
+        },
+        nextShape: this._board.next ? {
+          blockType: this._board.next.blockType,
+          blockVariation: this._board.next.blockVariation
+        } : null
+      };
+      
+      // Add to backtrack states
+      this._board.backtrackStates.push(state);
+      
+      // Keep only the last maxBacktrackStates states
+      if (this._board.backtrackStates.length > this._board.maxBacktrackStates) {
+        this._board.backtrackStates.shift();
+      }
+      
+      // Update last save time
+      this._board.lastStateSaveTime = now;
+    },
+
+    _showBacktrackSelector: function() {
+      var game = this;
+      var $list = game._$backtrackSelector.find('.blockrain-backtrack-selector-list');
+      
+      // Clear existing items
+      $list.empty();
+      
+      // Check if there are any backtrack states
+      if (game._board.backtrackStates.length === 0) {
+        $list.append('<div class="backtrack-item" style="padding: 8px; border-bottom: 1px solid #555; cursor: pointer;">No backtrack points available</div>');
+        game._$backtrackSelector.find('.blockrain-backtrack-select-btn').prop('disabled', true);
+      } else {
+        game._$backtrackSelector.find('.blockrain-backtrack-select-btn').prop('disabled', false);
+        
+        // Add backtrack items (newest first)
+        var now = Date.now();
+        for (var i = game._board.backtrackStates.length - 1; i >= 0; i--) {
+          var state = game._board.backtrackStates[i];
+          var secondsAgo = Math.round((now - state.timestamp) / 1000);
+          var item = $('<div class="backtrack-item" data-index="' + i + '" style="padding: 8px; border-bottom: 1px solid #555; cursor: pointer;">');
+          item.text(secondsAgo + ' second' + (secondsAgo !== 1 ? 's' : '') + ' ago (Score: ' + state.score + ', Lines: ' + state.lines + ')');
+          
+          // Add click handler to select item
+          item.click(function() {
+            game._$backtrackSelector.find('.backtrack-item').removeClass('selected');
+            $(this).addClass('selected');
+          });
+          
+          $list.append(item);
+        }
+        
+        // Select the first item by default
+        if (game._board.backtrackStates.length > 0) {
+          $list.find('.backtrack-item:first').addClass('selected');
+        }
+      }
+      
+      // Show the selector and pause the game
+      game._$backtrackSelector.show();
+      game._board.paused = true;
+    },
+    
+    _hideBacktrackSelector: function() {
+      this._$backtrackSelector.hide();
+    },
+    
+    _restoreGameStateByIndex: function(index) {
+      // Check if backtrack is allowed
+      if (!this._board.started || this._board.gameover || 
+          this._board.backtrackCount >= this._board.maxBacktrackCount || 
+          index < 0 || index >= this._board.backtrackStates.length) {
+        return false;
+      }
+      
+      // Get the selected state
+      var state = this._board.backtrackStates[index];
+      
+      // Remove all states after the selected one (since we're going back in time)
+      this._board.backtrackStates.splice(index, this._board.backtrackStates.length - index);
+      
+      // Restore game state
+      this._filled.data = state.filledData.slice();
+      this._filled.score = state.score;
+      this._board.lines = state.lines;
+      this._board.dropDelay = state.dropDelay;
+      
+      // Update score display
+      this._$scoreText.text(this._filled.score);
+      
+      // Restore current shape
+      this._board.cur = this._shapeFactory[state.currentShape.blockType]();
+      this._board.cur.blockVariation = state.currentShape.blockVariation;
+      this._board.cur.x = state.currentShape.x;
+      this._board.cur.y = state.currentShape.y;
+      this._board.cur.orientation = state.currentShape.orientation;
+      
+      // Restore next shape if available
+      if (state.nextShape) {
+        this._board.next = this._shapeFactory[state.nextShape.blockType]();
+        this._board.next.blockVariation = state.nextShape.blockVariation;
+      }
+      
+      // Increment backtrack count
+      this._board.backtrackCount++;
+      
+      // Update backtrack info
+      this._updateBacktrackInfo();
+      
+      // Re-render the board
+      this._board.render(true);
+      
+      // Resume the game after backtracking
+      this._board.paused = false;
+      
+      return true;
+    },
+    
+    _restoreGameState: function() {
+      // Check if backtrack is allowed
+      if (!this._board.started || this._board.gameover || this._board.paused || 
+          this._board.backtrackCount >= this._board.maxBacktrackCount || 
+          this._board.backtrackStates.length === 0) {
+        return false;
+      }
+      
+      // Show the backtrack selector
+      this._showBacktrackSelector();
+      return true;
     },
 
 
@@ -61,12 +220,28 @@
       this._board.started = true;
       this._board.gameover = false;
       this._board.dropDelay = 5;
+      this._board.lines = 0;
+      
+      // Initialize backtrack variables
+      this._board.backtrackStates = [];
+      this._board.maxBacktrackStates = 10; // 10 seconds of states
+      this._board.backtrackCount = 0;
+      this._board.maxBacktrackCount = 2; // Max 2 backtracks per game
+      this._board.lastStateSaveTime = Date.now();
+      this._board.stateSaveInterval = 1000; // Save state every 1 second
+      
       this._board.render(true);
       this._board.animate();
 
       this._$start.fadeOut(150);
       this._$gameover.fadeOut(150);
       this._$score.fadeIn(150);
+      if (this._$backtrackInfo) {
+        this._$backtrackInfo.fadeIn(150);
+      }
+      
+      // Update backtrack info
+      this._updateBacktrackInfo();
     },
 
 
@@ -805,6 +980,9 @@
 
           if( !this.paused && !this.gameover ) {
 
+            // Save game state every second
+            game._saveGameState();
+            
             this.dropCount++;
             
             // Drop by delay or holding
@@ -812,7 +990,7 @@
                 (game.options.autoplay) || 
                 (this.holding.drop && (now - this.holding.drop) >= this.holdingThreshold) ) {
               drop = true;
-            moved = true;
+              moved = true;
               this.dropCount = 0;
             }
 
@@ -868,7 +1046,9 @@
           if( gameOver ) {
 
             this.gameover = true;
-
+            if (game._$backtrackInfo) {
+              game._$backtrackInfo.fadeOut(150);
+            }
             game.gameover();
 
             if( game.options.autoplay && game.options.autoplayRestart ) {
@@ -1219,22 +1399,60 @@
 
       // Score
       game._$score = $(
-        '<div class="blockrain-score-holder" style="position:absolute;">'+
-          '<div class="blockrain-score">'+
-            '<div class="blockrain-score-msg">'+ this.options.scoreText +'</div>'+
-            '<div class="blockrain-score-num">0</div>'+
-          '</div>'+
+        '<div class="blockrain-score-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-score">'+ 
+            '<div class="blockrain-score-msg">'+ this.options.scoreText +'</div>'+ 
+            '<div class="blockrain-score-num">0</div>'+ 
+          '</div>'+ 
         '</div>').hide();
       game._$scoreText = game._$score.find('.blockrain-score-num');
       game._$gameholder.append(game._$score);
 
+      // Backtrack Info
+      game._$backtrackInfo = $(
+        '<div class="blockrain-backtrack-holder" style="position:absolute; top:50px; left:10px; color:white; font-size:12px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">'+ 
+          '<div class="blockrain-backtrack-info">'+ 
+            '<div class="blockrain-backtrack-msg">'+ this.options.backtrackText +': Space</div>'+ 
+            '<div class="blockrain-backtrack-available">'+ this.options.backtrackAvailableText +'<span class="backtrack-count">2</span></div>'+ 
+            '<div class="blockrain-backtrack-range">'+ this.options.backtrackRangeText +'</div>'+ 
+          '</div>'+ 
+        '</div>').hide();
+      game._$backtrackCount = game._$backtrackInfo.find('.backtrack-count');
+      game._$gameholder.append(game._$backtrackInfo);
+
+      // Backtrack Selection UI
+      game._$backtrackSelector = $(
+        '<div class="blockrain-backtrack-selector" style="position:absolute; top:50%; left:50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; color: white; display: none; z-index: 1000;">'+ 
+          '<div class="blockrain-backtrack-selector-title">Select a time to backtrack to:</div>'+ 
+          '<div class="blockrain-backtrack-selector-list" style="max-height: 300px; overflow-y: auto; margin: 15px 0;"></div>'+ 
+          '<div class="blockrain-backtrack-selector-buttons" style="text-align: center;">'+ 
+            '<button class="blockrain-btn blockrain-backtrack-select-btn" style="margin-right: 10px;">Select</button>'+ 
+            '<button class="blockrain-btn blockrain-backtrack-cancel-btn">Cancel</button>'+ 
+          '</div>'+ 
+        '</div>').hide();
+      game._$gameholder.append(game._$backtrackSelector);
+      
+      // Event handlers for backtrack selector
+      game._$backtrackSelector.find('.blockrain-backtrack-cancel-btn').click(function() {
+        game._hideBacktrackSelector();
+        game._board.paused = false; // Resume game when canceling
+      });
+      
+      game._$backtrackSelector.find('.blockrain-backtrack-select-btn').click(function() {
+        var selectedIndex = game._$backtrackSelector.find('.backtrack-item.selected').data('index');
+        if (selectedIndex !== undefined) {
+          game._restoreGameStateByIndex(selectedIndex);
+          game._hideBacktrackSelector();
+        }
+      });
+
       // Create the start menu
       game._$start = $(
-        '<div class="blockrain-start-holder" style="position:absolute;">'+
-          '<div class="blockrain-start">'+
-            '<div class="blockrain-start-msg">'+ this.options.playText +'</div>'+
-            '<a class="blockrain-btn blockrain-start-btn">'+ this.options.playButtonText +'</a>'+
-          '</div>'+
+        '<div class="blockrain-start-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-start">'+ 
+            '<div class="blockrain-start-msg">'+ this.options.playText +'</div>'+ 
+            '<a class="blockrain-btn blockrain-start-btn">'+ this.options.playButtonText +'</a>'+ 
+          '</div>'+ 
         '</div>').hide();
       game._$gameholder.append(game._$start);
 
@@ -1245,11 +1463,11 @@
 
       // Create the game over menu
       game._$gameover = $(
-        '<div class="blockrain-game-over-holder" style="position:absolute;">'+
-          '<div class="blockrain-game-over">'+
-            '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+
-            '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+
-          '</div>'+
+        '<div class="blockrain-game-over-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-game-over">'+ 
+            '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+ 
+            '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+ 
+          '</div>'+ 
         '</div>').hide();
       game._$gameover.find('.blockrain-game-over-btn').click(function(event){
         event.preventDefault();
@@ -1476,6 +1694,12 @@
           case 38: /*up*/     game._board.cur.rotate('right'); break;
           case 88: /*x*/      game._board.cur.rotate('right'); break;
           case 90: /*z*/      game._board.cur.rotate('left'); break;
+          case 32: /*space*/  
+            // Trigger backtrack
+            if (game._restoreGameState()) {
+              caught = true;
+            }
+            break;
           default: caught = false;
         }
         if (caught) evt.preventDefault();
