@@ -405,6 +405,127 @@
         [2, -1,   1, -1,   1,  0,   0,  0],
         [0, -2,   0, -1,   1, -1,   1,  0],
         [0,  0,   1,  0,   1, -1,   2, -1]
+      ],
+      /*
+       *   O
+       */
+      single: [
+        [0, 0],
+        [0, 0],
+        [0, 0],
+        [0, 0]
+      ],
+      /*
+       *   OO
+       */
+      double: [
+        [0, 0,   1, 0],
+        [0, 0,   0, -1],
+        [1, 0,   0, 0],
+        [0, -1,   0, 0]
+      ],
+      /*
+       *   OOO
+       */
+      tripleLine: [
+        [0, 0,   1, 0,   2, 0],
+        [0, 0,   0, -1,   0, -2],
+        [2, 0,   1, 0,   0, 0],
+        [0, -2,   0, -1,   0, 0]
+      ],
+      /*
+       *   O
+       *   OO
+       */
+      tripleL1: [
+        [0, 0,   0, -1,   1, -1],
+        [0, 0,   1, 0,   1, 1],
+        [1, 1,   0, 1,   0, 0],
+        [0, -1,   -1, -1,   -1, 0]
+      ],
+      /*
+       *     O
+       *   OO
+       */
+      tripleL2: [
+        [1, 0,   0, -1,   1, -1],
+        [0, 0,   0, 1,   1, 1],
+        [0, 1,   1, 1,   1, 0],
+        [1, -1,   2, -1,   2, 0]
+      ],
+      /*
+       *   OXO
+       *   OOO
+       */
+      concave: [
+        [0, 0,   2, 0,   0, -1,   1, -1,   2, -1],
+        [1, 0,   1, -1,   0, -1,   0, -2,   1, -2],
+        [0, -1,   1, -1,   2, -1,   0, 0,   2, 0],
+        [0, -2,   1, -2,   1, -1,   1, 0,   0, -1]
+      ],
+      /*
+       *   OOX
+       *   XOO
+       */
+      z5: [
+        [0, 0,   1, 0,   1, -1,   2, -1,   2, -2],
+        [2, 0,   1, -1,   2, -1,   0, -2,   1, -2],
+        [2, -2,   1, -2,   1, -1,   0, -1,   0, 0],
+        [0, -2,   1, -2,   0, -1,   1, 0,   2, 0]
+      ],
+      /*
+       *   XOO
+       *   OOX
+       */
+      z5Rev: [
+        [1, 0,   2, 0,   0, -1,   1, -1,   0, -2],
+        [0, 0,   1, -1,   0, -1,   2, -2,   1, -2],
+        [0, -2,   1, -2,   1, -1,   2, -1,   2, 0],
+        [2, -2,   1, -2,   2, -1,   1, 0,   0, 0]
+      ],
+      /*
+       *   OXO
+       *   OXO
+       *   O
+       */
+      t5: [
+        [0, 0,   2, 0,   1, -1,   0, -1,   2, -1],
+        [1, 0,   1, -1,   0, -1,   1, -2,   2, -1],
+        [0, -1,   2, -1,   1, 0,   0, 0,   2, 0],
+        [1, -2,   1, -1,   2, -1,   1, 0,   0, -1]
+      ],
+      /*
+       *   O
+       *   O
+       *   OOO
+       */
+      l5: [
+        [0, 0,   0, -1,   0, -2,   1, -2,   2, -2],
+        [2, 0,   1, 0,   0, 0,   0, -1,   0, -2],
+        [2, -2,   1, -2,   0, -2,   0, -1,   0, 0],
+        [0, -2,   0, -1,   0, 0,   1, 0,   2, 0]
+      ],
+      /*
+       *     O
+       *     O
+       *   OOO
+       */
+      l5Rev: [
+        [2, 0,   2, -1,   2, -2,   1, -2,   0, -2],
+        [0, 0,   1, 0,   2, 0,   2, -1,   2, -2],
+        [0, -2,   1, -2,   2, -2,   2, -1,   2, 0],
+        [2, -2,   2, -1,   2, 0,   1, 0,   0, 0]
+      ],
+      /*
+       *    O
+       *   OOO
+       *    O
+       */
+      cross: [
+        [1, 0,   0, -1,   1, -1,   2, -1,   1, -2],
+        [1, 0,   0, -1,   1, -1,   2, -1,   1, -2],
+        [1, -2,   0, -1,   1, -1,   2, -1,   1, 0],
+        [1, -2,   0, -1,   1, -1,   2, -1,   1, 0]
       ]
     },
 
@@ -516,7 +637,7 @@
                 i = 0,
                 index = 0;
 
-            for (; i<this.blocksLen; i += 2) {
+            for (; i<blocks.length; i += 2) {
               game._board.drawBlock(x + blocks[i], y + blocks[i+1], this.blockType, this.blockVariation, index, this.orientation, true);
               index++;
             }
@@ -565,6 +686,42 @@
         },
         rightZag: function() {
           return new Shape(game, game._shapes.rightZag, false, 'rightZag');
+        },
+        single: function() {
+          return new Shape(game, game._shapes.single, false, 'single');
+        },
+        double: function() {
+          return new Shape(game, game._shapes.double, false, 'double');
+        },
+        tripleLine: function() {
+          return new Shape(game, game._shapes.tripleLine, false, 'tripleLine');
+        },
+        tripleL1: function() {
+          return new Shape(game, game._shapes.tripleL1, false, 'tripleL1');
+        },
+        tripleL2: function() {
+          return new Shape(game, game._shapes.tripleL2, false, 'tripleL2');
+        },
+        concave: function() {
+          return new Shape(game, game._shapes.concave, false, 'concave');
+        },
+        z5: function() {
+          return new Shape(game, game._shapes.z5, false, 'z5');
+        },
+        z5Rev: function() {
+          return new Shape(game, game._shapes.z5Rev, false, 'z5Rev');
+        },
+        t5: function() {
+          return new Shape(game, game._shapes.t5, false, 't5');
+        },
+        l5: function() {
+          return new Shape(game, game._shapes.l5, false, 'l5');
+        },
+        l5Rev: function() {
+          return new Shape(game, game._shapes.l5Rev, false, 'l5Rev');
+        },
+        cross: function() {
+          return new Shape(game, game._shapes.cross, false, 'cross');
         }
       };
     },
@@ -1411,10 +1568,24 @@
 
     _randomShapes: function() {
       // Todo: The shapefuncs should be cached.
-      var shapeFuncs = [];
-      $.each(this._shapeFactory, function(k,v) { shapeFuncs.push(v); });
-
-      return this._randChoice(shapeFuncs);
+      var normalShapes = [], specialShapes = [];
+      
+      // 将方块分为普通方块和特殊方块两组
+      $.each(this._shapeFactory, function(k,v) {
+        if (['line', 'square', 'arrow', 'leftHook', 'rightHook', 'leftZag', 'rightZag'].indexOf(k) !== -1) {
+          normalShapes.push(v);
+        } else {
+          specialShapes.push(v);
+        }
+      });
+      
+      // 特殊方块的出现概率为普通方块的1/2
+      var allShapes = normalShapes.concat(specialShapes);
+      var shapeFunc = this._randChoice(allShapes);
+      
+      // 有1/3的概率（因为特殊方块数量是普通方块的7/7=1倍，所以总概率是7+7=14，特殊方块占7，所以7/14=1/2？不对，应该是：普通方块有7个，特殊方块有7个。如果我想让特殊方块的出现概率是普通方块的1/2，那么应该是普通方块出现的概率是2/3，特殊方块是1/3。所以我需要创建一个新的数组，包含2份普通方块和1份特殊方块。
+      var weightedShapes = normalShapes.concat(normalShapes).concat(specialShapes);
+      return this._randChoice(weightedShapes);
     },
 
 
