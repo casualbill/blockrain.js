@@ -405,6 +405,27 @@
         [2, -1,   1, -1,   1,  0,   0,  0],
         [0, -2,   0, -1,   1, -1,   1,  0],
         [0,  0,   1,  0,   1, -1,   2, -1]
+      ],
+      /*
+       *  道具方块 - 单个方块
+       */
+      stone: [
+        [0, 0],
+        [0, 0],
+        [0, 0],
+        [0, 0]
+      ],
+      bomb: [
+        [0, 0],
+        [0, 0],
+        [0, 0],
+        [0, 0]
+      ],
+      laser: [
+        [0, 0],
+        [0, 0],
+        [0, 0],
+        [0, 0]
       ]
     },
 
@@ -565,6 +586,15 @@
         },
         rightZag: function() {
           return new Shape(game, game._shapes.rightZag, false, 'rightZag');
+        },
+        stone: function() {
+          return new Shape(game, game._shapes.stone, true, 'stone');
+        },
+        bomb: function() {
+          return new Shape(game, game._shapes.bomb, true, 'bomb');
+        },
+        laser: function() {
+          return new Shape(game, game._shapes.laser, true, 'laser');
         }
       };
     },
@@ -622,7 +652,7 @@
           for (i=0, len=this.data.length; i<len; i++) {
             mod = this.asX(i);
             if (mod == 0) count = 0;
-            if (this.data[i] && typeof this.data[i] !== 'undefined' && typeof this.data[i].blockType === 'string') {
+            if (this.data[i] && typeof this.data[i] !== 'undefined' && typeof this.data[i].blockType === 'string' && this.data[i].blockType !== 'stone') {
               count += 1;
             }
             if (mod == game._BLOCK_WIDTH - 1 && count == game._BLOCK_WIDTH) {
@@ -745,34 +775,44 @@
           var next = this.next,
             func, shape, result;
 
-          if (info.mode == 'nice' || info.mode == 'evil') {
-            func = game._niceShapes;
-          }
-          else {
-            func = game._randomShapes();
-          }
+          // 5%概率生成道具方块
+          var isPowerUp = Math.random() < 0.05;
+          
+          if (isPowerUp) {
+            // 三种道具方块等概率出现
+            var powerUpTypes = ['stone', 'bomb', 'laser'];
+            var powerUpType = powerUpTypes[game._randInt(0, powerUpTypes.length - 1)];
+            result = game._shapeFactory[powerUpType]();
+          } else {
+            if (info.mode == 'nice' || info.mode == 'evil') {
+              func = game._niceShapes;
+            }
+            else {
+              func = game._randomShapes();
+            }
 
-          if( game.options.no_preview ) {
-            this.next = null;
-            if (_set_next_only) return null;
-            shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
-            if (!shape) throw new Error('No shape returned from shape function!', func);
-            shape.init();
-            result = shape;
-          }
-          else {
-            shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
-            if (!shape) throw new Error('No shape returned from shape function!', func);
-            shape.init();
-            this.next = shape;
-            if (_set_next_only) return null;
-            result = next || this.nextShape();
-          }
+            if( game.options.no_preview ) {
+              this.next = null;
+              if (_set_next_only) return null;
+              shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
+              if (!shape) throw new Error('No shape returned from shape function!', func);
+              shape.init();
+              result = shape;
+            }
+            else {
+              shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
+              if (!shape) throw new Error('No shape returned from shape function!', func);
+              shape.init();
+              this.next = shape;
+              if (_set_next_only) return null;
+              result = next || this.nextShape();
+            }
 
-          if( game.options.autoplay ) { //fun little hack...
-            game._niceShapes(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, 'normal', result);
-            result.orientation = result.best_orientation;
-            result.x = result.best_x;
+            if( game.options.autoplay ) { //fun little hack...
+              game._niceShapes(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, 'normal', result);
+              result.orientation = result.best_orientation;
+              result.x = result.best_x;
+            }
           }
 
           if( typeof game._theme.complexBlocks !== 'undefined' ) {
@@ -812,7 +852,7 @@
                 (game.options.autoplay) || 
                 (this.holding.drop && (now - this.holding.drop) >= this.holdingThreshold) ) {
               drop = true;
-            moved = true;
+              moved = true;
               this.dropCount = 0;
             }
 
@@ -834,14 +874,45 @@
               if (game._checkCollisions(x, y+1, blocks, true)) {
                 drop = false;
                 var blockIndex = 0;
-                for (var i=0; i<cur.blocksLen; i+=2) {
-                  game._filled.add(x + blocks[i], y + blocks[i+1], cur.blockType, cur.blockVariation, blockIndex, cur.orientation);
-                  if (y + blocks[i] < 0) {
-                    gameOver = true;
+                
+                // 处理道具方块的特殊效果
+                if (cur.blockType === 'stone' || cur.blockType === 'bomb' || cur.blockType === 'laser') {
+                  var powerUpX = x + blocks[0];
+                  var powerUpY = y + blocks[1];
+                  
+                  if (cur.blockType === 'stone') {
+                    // 石化方块：标记为不可消除
+                    game._filled.add(powerUpX, powerUpY, cur.blockType, cur.blockVariation, blockIndex, cur.orientation);
+                    // 添加石化动画效果
+                    this.addStoneAnimation(powerUpX, powerUpY);
+                  } else if (cur.blockType === 'bomb') {
+                    // 爆炸方块：清除周围9个格子
+                    this.addBombAnimation(powerUpX, powerUpY);
+                    setTimeout(function() {
+                      game.clearArea(powerUpX, powerUpY, 1); // 清除周围1格
+                    }, 400); // 动画播放到一半时执行清除
+                  } else if (cur.blockType === 'laser') {
+                    // 激光方块：清除整行整列
+                    this.addLaserAnimation(powerUpX, powerUpY);
+                    setTimeout(function() {
+                      game.clearRow(powerUpY);
+                      game.clearColumn(powerUpX);
+                    }, 300); // 动画播放到一半时执行清除
                   }
+                  
                   blockIndex++;
+                } else {
+                  // 普通方块处理
+                  for (var i=0; i<cur.blocksLen; i+=2) {
+                    game._filled.add(x + blocks[i], y + blocks[i+1], cur.blockType, cur.blockVariation, blockIndex, cur.orientation);
+                    if (y + blocks[i] < 0) {
+                      gameOver = true;
+                    }
+                    blockIndex++;
+                  }
+                  game._filled.checkForClears();
                 }
-                game._filled.checkForClears();
+                
                 this.cur = this.nextShape();
                 this.renderChanged = true;
 
@@ -957,7 +1028,15 @@
           var color = this.getBlockColor(blockType, blockVariation, blockIndex, falling);
 
           // Draw the main square
-          game._ctx.globalAlpha = 1.0;
+          var alpha = 1.0;
+          // 检查是否正在进行石化动画
+          if (game._stoneAnimation && game._stoneAnimation.x === x && game._stoneAnimation.y === y) {
+            var elapsed = Date.now() - game._stoneAnimation.startTime;
+            var progress = Math.min(elapsed / game._stoneAnimation.duration, 1);
+            // 交替显示不同的透明度以创建闪烁效果
+            alpha = (Math.floor(progress * 10) % 2) ? 0.5 : 1.0;
+          }
+          game._ctx.globalAlpha = alpha;
 
           // If it's an image, the block has a specific texture. Use that.
           if( color instanceof Image ) {
@@ -1084,6 +1163,15 @@
             }
           }
 
+          // 为道具方块提供默认颜色
+          if (blockType === 'stone') {
+            return '#8B7355'; // 石化方块：灰色/石质
+          } else if (blockType === 'bomb') {
+            return '#FF4444'; // 爆炸方块：红色
+          } else if (blockType === 'laser') {
+            return '#4488FF'; // 激光方块：蓝色
+          }
+
           if( typeof falling !== 'boolean' ){ falling = true; }
           if( falling ) {
             if( typeof game._theme.primary === 'string' && game._theme.primary !== '' ) {
@@ -1102,6 +1190,122 @@
               return getBlockVariation(game._theme.complexBlocks[blockType], blockVariation);
             }
           }
+        },
+        
+        // 石化动画
+        addStoneAnimation: function(x, y) {
+          var startTime = Date.now();
+          var duration = 500; // 0.5秒
+          
+          // 将动画信息存储在game对象中
+          this._stoneAnimation = {
+            x: x * this._block_size, // 转换为像素坐标
+            y: y * this._block_size, // 转换为像素坐标
+            startTime: startTime,
+            duration: duration
+          };
+          
+          var animate = function() {
+            var elapsed = Date.now() - startTime;
+            var progress = Math.min(elapsed / duration, 1);
+            
+            if (progress < 1) {
+              // 重新渲染方块以显示动画
+              game._board.renderChanged = true;
+              setTimeout(animate, 50);
+            } else {
+              // 动画结束，清除动画信息
+              delete game._stoneAnimation;
+              game._board.renderChanged = true;
+            }
+          };
+          
+          animate();
+        },
+        
+        // 爆炸动画
+        addBombAnimation: function(x, y) {
+          var startTime = Date.now();
+          var duration = 800; // 0.8秒
+          
+          var animate = function() {
+            var elapsed = Date.now() - startTime;
+            var progress = Math.min(elapsed / duration, 1);
+            
+            if (progress < 1) {
+              // 绘制爆炸波纹效果
+              var radius = progress * game._block_size * 1.5;
+              var centerX = (x + 0.5) * game._block_size;
+              var centerY = (y + 0.5) * game._block_size;
+              
+              // 保存当前绘图状态
+              game._ctx.save();
+              
+              // 绘制爆炸波纹
+              game._ctx.globalAlpha = 1 - progress;
+              game._ctx.strokeStyle = '#FF4444';
+              game._ctx.lineWidth = 3;
+              game._ctx.beginPath();
+              game._ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+              game._ctx.stroke();
+              
+              // 恢复绘图状态
+              game._ctx.restore();
+              
+              setTimeout(animate, 30);
+            } else {
+              // 动画结束，重新渲染
+              game._board.renderChanged = true;
+            }
+          };
+          
+          animate();
+        },
+        
+        // 激光动画
+        addLaserAnimation: function(x, y) {
+          var startTime = Date.now();
+          var duration = 600; // 0.6秒
+          
+          var animate = function() {
+            var elapsed = Date.now() - startTime;
+            var progress = Math.min(elapsed / duration, 1);
+            
+            if (progress < 1) {
+              // 绘制激光扫过效果
+              var lineWidth = game._block_size * 0.1;
+              var alpha = 1 - progress;
+              
+              // 保存当前绘图状态
+              game._ctx.save();
+              
+              // 绘制水平激光（行）
+              game._ctx.globalAlpha = alpha;
+              game._ctx.strokeStyle = '#4488FF';
+              game._ctx.lineWidth = lineWidth;
+              game._ctx.beginPath();
+              game._ctx.moveTo(0, (y + 0.5) * game._block_size);
+              game._ctx.lineTo(game._PIXEL_WIDTH, (y + 0.5) * game._block_size);
+              game._ctx.stroke();
+              
+              // 绘制垂直激光（列）
+              game._ctx.strokeStyle = '#4488FF';
+              game._ctx.beginPath();
+              game._ctx.moveTo((x + 0.5) * game._block_size, 0);
+              game._ctx.lineTo((x + 0.5) * game._block_size, game._PIXEL_HEIGHT);
+              game._ctx.stroke();
+              
+              // 恢复绘图状态
+              game._ctx.restore();
+              
+              setTimeout(animate, 30);
+            } else {
+              // 动画结束，重新渲染
+              game._board.renderChanged = true;
+            }
+          };
+          
+          animate();
         }
 
       };
@@ -1113,6 +1317,34 @@
     _randInt: function(a, b) { return a + Math.floor(Math.random() * (1 + b - a)); },
     _randSign: function() { return this._randInt(0, 1) * 2 - 1; },
     _randChoice: function(choices) { return choices[this._randInt(0, choices.length-1)]; },
+    
+    // 清除指定区域的方块（包括石化方块）
+    clearArea: function(centerX, centerY, radius) {
+      for (var x = centerX - radius; x <= centerX + radius; x++) {
+        for (var y = centerY - radius; y <= centerY + radius; y++) {
+          if (x >= 0 && x < this._BLOCK_WIDTH && y >= 0 && y < this._BLOCK_HEIGHT) {
+            this._filled.data[this._filled.asIndex(x, y)] = undefined;
+          }
+        }
+      }
+      this._board.renderChanged = true;
+    },
+    
+    // 清除指定行的所有方块（包括石化方块）
+    clearRow: function(row) {
+      for (var x = 0; x < this._BLOCK_WIDTH; x++) {
+        this._filled.data[this._filled.asIndex(x, row)] = undefined;
+      }
+      this._board.renderChanged = true;
+    },
+    
+    // 清除指定列的所有方块（包括石化方块）
+    clearColumn: function(column) {
+      for (var y = 0; y < this._BLOCK_HEIGHT; y++) {
+        this._filled.data[this._filled.asIndex(column, y)] = undefined;
+      }
+      this._board.renderChanged = true;
+    },
 
 
     /**
