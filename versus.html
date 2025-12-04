@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Blockrain.js - Local Versus Mode</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui" />
+  <link href='http://fonts.googleapis.com/css?family=Play:400,700' rel='stylesheet' type='text/css'>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="src/blockrain.css">
+  <style>
+    #versus-container {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px;
+      gap: 30px;
+      flex-wrap: wrap;
+    }
+    .player-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.1);
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    }
+    .player-title {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #333;
+    }
+    .game-container {
+      width: 300px;
+      height: 500px;
+      margin-bottom: 15px;
+    }
+    .controls {
+      background: #f9f9f9;
+      padding: 10px;
+      border-radius: 5px;
+      text-align: center;
+      font-size: 14px;
+    }
+    .controls h3 {
+      margin: 5px 0 10px 0;
+      color: #555;
+    }
+    .key {
+      display: inline-block;
+      background: #fff;
+      border: 2px solid #ccc;
+      border-radius: 3px;
+      padding: 2px 6px;
+      margin: 2px;
+      font-family: monospace;
+      font-size: 12px;
+      min-width: 18px;
+      text-align: center;
+    }
+    .pause-btn {
+      margin-top: 10px;
+      padding: 8px 16px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .pause-btn:hover {
+      background: #45a049;
+    }
+    #game-status {
+      text-align: center;
+      font-size: 20px;
+      font-weight: bold;
+      margin: 20px 0;
+      color: #333;
+    }
+    #restart-btn {
+      display: block;
+      margin: 0 auto 20px;
+      padding: 10px 20px;
+      background: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    #restart-btn:hover {
+      background: #1976D2;
+    }
+    .winner {
+      color: #4CAF50;
+      font-size: 24px;
+    }
+    .paused {
+      color: #FF9800;
+    }
+  </style>
+</head>
+<body>
+  <h1 style="text-align: center; margin-top: 20px;">Blockrain.js - Local Versus Mode</h1>
+  
+  <div id="game-status"></div>
+  <button id="restart-btn">Start New Game</button>
+  
+  <div id="versus-container">
+    <div class="player-area">
+      <div class="player-title">Player 1</div>
+      <div class="game-container" id="game1"></div>
+      <div class="controls">
+        <h3>Controls</h3>
+        <div>
+          <span class="key">↑</span> Rotate Right<br>
+          <span class="key">↓</span> Drop<br>
+          <span class="key">←</span> Move Left<br>
+          <span class="key">→</span> Move Right<br>
+          <span class="key">P</span> Pause
+        </div>
+        <button class="pause-btn" data-player="1">Pause</button>
+      </div>
+    </div>
+    
+    <div class="player-area">
+      <div class="player-title">Player 2</div>
+      <div class="game-container" id="game2"></div>
+      <div class="controls">
+        <h3>Controls</h3>
+        <div>
+          <span class="key">W</span> Rotate Right<br>
+          <span class="key">S</span> Drop<br>
+          <span class="key">A</span> Move Left<br>
+          <span class="key">D</span> Move Right<br>
+          <span class="key">P</span> Pause
+        </div>
+        <button class="pause-btn" data-player="2">Pause</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/jquery-1.11.1.min.js"></script>
+  <script src="src/blockrain.jquery.libs.js"></script>
+  <script src="src/blockrain.jquery.src.js"></script>
+  <script src="src/blockrain.jquery.themes.js"></script>
+  
+  <script>
+    var game1, game2;
+    var gameOver = false;
+    var paused = { player1: false, player2: false };
+    var gameStatus = $('#game-status');
+    var restartBtn = $('#restart-btn');
+    var seed = 0;
+    
+    // Initialize both games
+    function initGames() {
+      gameOver = false;
+      paused = { player1: false, player2: false };
+      gameStatus.text('');
+      
+      // Generate a new seed for each game
+      seed = Math.floor(Math.random() * 1000000);
+      
+      // Destroy existing games if any
+      if (game1) {
+        $('#game1').empty();
+      }
+      if (game2) {
+        $('#game2').empty();
+      }
+      
+      // Create new game instances with the same seed
+      game1 = $('#game1').blockrain({
+        speed: 50,
+        theme: 'modern',
+        asdwKeys: false, // Disable ASDW for player 1
+        seed: seed, // Use the same seed for both games
+        onGameOver: function(score) {
+          if (!gameOver) {
+            gameOver = true;
+            gameStatus.html('<span class="winner">Player 2 Wins!</span>');
+            game2.blockrain('pause');
+          }
+        }
+      });
+      
+      game2 = $('#game2').blockrain({
+        speed: 50,
+        theme: 'candy',
+        asdwKeys: false, // Disable default controls for player 2
+        seed: seed, // Use the same seed for both games
+        onGameOver: function(score) {
+          if (!gameOver) {
+            gameOver = true;
+            gameStatus.html('<span class="winner">Player 1 Wins!</span>');
+            game1.blockrain('pause');
+          }
+        }
+      });
+      
+      // Hide start messages and show scores
+      game1.blockrain('showStartMessage');
+      game2.blockrain('showStartMessage');
+    }
+    
+    // Shared animation loop for both games
+    function animate() {
+      if (gameOver || (paused.player1 && paused.player2)) {
+        animationFrameId = requestAnimationFrame(animate);
+        return;
+      }
+      
+      var now = Date.now();
+      var board1 = game1.blockrain('_board');
+      var board2 = game2.blockrain('_board');
+      var moved = false;
+      
+      // Handle automatic dropping
+      if (now - lastDropTime >= dropInterval) {
+        // Drop for both games
+        if (!board1.paused && !board1.gameover) {
+          dropBlock(board1);
+          moved = true;
+        }
+        if (!board2.paused && !board2.gameover) {
+          dropBlock(board2);
+          moved = true;
+        }
+        lastDropTime = now;
+      }
+      
+      // Handle key holding for both games
+      handleKeyHolding(board1, 'player1');
+      handleKeyHolding(board2, 'player2');
+      
+      // Render both games if needed
+      if (moved || board1.renderChanged || board2.renderChanged) {
+        board1.render();
+        board2.render();
+      }
+      
+      animationFrameId = requestAnimationFrame(animate);
+    }
+    
+    // Drop block for a specific board
+    function dropBlock(board) {
+      var cur = board.cur;
+      var x = cur.x;
+      var y = cur.y;
+      var blocks = cur.getBlocks();
+      var game = board.game;
+      
+      if (game.blockrain('_checkCollisions')(x, y + 1, blocks, true)) {
+        // Collision detected, place the block
+        var blockIndex = 0;
+        for (var i = 0; i < cur.blocksLen; i += 2) {
+          game.blockrain('_filled').add(x + blocks[i], y + blocks[i + 1], cur.blockType, cur.blockVariation, blockIndex, cur.orientation);
+          if (y + blocks[i + 1] < 0) {
+            // Game over
+            board.gameover = true;
+            game.blockrain('gameover');
+          }
+          blockIndex++;
+        }
+        game.blockrain('_filled').checkForClears();
+        board.cur = board.nextShape();
+        board.renderChanged = true;
+        
+        // Stop holding keys
+        board.holding.left = null;
+        board.holding.right = null;
+        board.holding.drop = null;
+      } else {
+        // Move block down
+        cur.y++;
+        board.renderChanged = true;
+      }
+    }
+    
+    // Handle key holding for a specific board and player
+    function handleKeyHolding(board, player) {
+      if (board.paused || board.gameover) return;
+      
+      var now = Date.now();
+      var holding = board.holding;
+      var threshold = board.holdingThreshold;
+      
+      if (holding.left && (now - holding.left) >= threshold) {
+        board.cur.moveLeft();
+      }
+      if (holding.right && (now - holding.right) >= threshold) {
+        board.cur.moveRight();
+      }
+      if (holding.drop && (now - holding.drop) >= threshold) {
+        board.cur.drop();
+      }
+    }
+    
+    // Custom control setup for two players
+    function setupControls() {
+      // Unbind default controls
+      $(document).unbind('keydown.blockrain').unbind('keyup.blockrain');
+      
+      var holding = { 
+        player1: { left: null, right: null, drop: null },
+        player2: { left: null, right: null, drop: null }
+      };
+      
+      // Player 1 controls (Arrow keys)
+      var moveLeft1 = function(start) {
+        if (!start) { holding.player1.left = null; return; }
+        if (!holding.player1.left && game1 && !game1.blockrain('_board').paused && !gameOver) {
+          game1.blockrain('_board').cur.moveLeft();
+          holding.player1.left = Date.now();
+          holding.player1.right = null;
+        }
+      };
+      
+      var moveRight1 = function(start) {
+        if (!start) { holding.player1.right = null; return; }
+        if (!holding.player1.right && game1 && !game1.blockrain('_board').paused && !gameOver) {
+          game1.blockrain('_board').cur.moveRight();
+          holding.player1.right = Date.now();
+          holding.player1.left = null;
+        }
+      };
+      
+      var drop1 = function(start) {
+        if (!start) { holding.player1.drop = null; return; }
+        if (!holding.player1.drop && game1 && !game1.blockrain('_board').paused && !gameOver) {
+          game1.blockrain('_board').cur.drop();
+          holding.player1.drop = Date.now();
+        }
+      };
+      
+      var rotate1 = function() {
+        if (game1 && !game1.blockrain('_board').paused && !gameOver) {
+          game1.blockrain('_board').cur.rotate('right');
+        }
+      };
+      
+      // Player 2 controls (WASD)
+      var moveLeft2 = function(start) {
+        if (!start) { holding.player2.left = null; return; }
+        if (!holding.player2.left && game2 && !game2.blockrain('_board').paused && !gameOver) {
+          game2.blockrain('_board').cur.moveLeft();
+          holding.player2.left = Date.now();
+          holding.player2.right = null;
+        }
+      };
+      
+      var moveRight2 = function(start) {
+        if (!start) { holding.player2.right = null; return; }
+        if (!holding.player2.right && game2 && !game2.blockrain('_board').paused && !gameOver) {
+          game2.blockrain('_board').cur.moveRight();
+          holding.player2.right = Date.now();
+          holding.player2.left = null;
+        }
+      };
+      
+      var drop2 = function(start) {
+        if (!start) { holding.player2.drop = null; return; }
+        if (!holding.player2.drop && game2 && !game2.blockrain('_board').paused && !gameOver) {
+          game2.blockrain('_board').cur.drop();
+          holding.player2.drop = Date.now();
+        }
+      };
+      
+      var rotate2 = function() {
+        if (game2 && !game2.blockrain('_board').paused && !gameOver) {
+          game2.blockrain('_board').cur.rotate('right');
+        }
+      };
+      
+      // Pause function for both players
+      var togglePause = function() {
+        if (gameOver) return;
+        
+        if (paused.player1 || paused.player2) {
+          // Try to resume - need both players to be paused
+          if (paused.player1 && paused.player2) {
+            game1.blockrain('resume');
+            game2.blockrain('resume');
+            paused.player1 = false;
+            paused.player2 = false;
+            gameStatus.text('');
+          }
+        } else {
+          // Pause both games
+          game1.blockrain('pause');
+          game2.blockrain('pause');
+          paused.player1 = true;
+          paused.player2 = true;
+          gameStatus.html('<span class="paused">Game Paused - Press P again to resume</span>');
+        }
+      };
+      
+      // Keydown handler
+      var handleKeyDown = function(evt) {
+        if (gameOver) return true;
+        
+        var caught = false;
+        
+        switch(evt.keyCode) {
+          // Player 1 controls
+          case 37: /* left */
+            moveLeft1(true);
+            caught = true;
+            break;
+          case 39: /* right */
+            moveRight1(true);
+            caught = true;
+            break;
+          case 40: /* down */
+            drop1(true);
+            caught = true;
+            break;
+          case 38: /* up */
+            rotate1();
+            caught = true;
+            break;
+            
+          // Player 2 controls
+          case 65: /* A */
+            moveLeft2(true);
+            caught = true;
+            break;
+          case 68: /* D */
+            moveRight2(true);
+            caught = true;
+            break;
+          case 83: /* S */
+            drop2(true);
+            caught = true;
+            break;
+          case 87: /* W */
+            rotate2();
+            caught = true;
+            break;
+            
+          // Pause for both
+          case 80: /* P */
+            togglePause();
+            caught = true;
+            break;
+          
+          default:
+            caught = false;
+        }
+        
+        if (caught) evt.preventDefault();
+        return !caught;
+      };
+      
+      // Keyup handler
+      var handleKeyUp = function(evt) {
+        if (gameOver) return true;
+        
+        var caught = false;
+        
+        switch(evt.keyCode) {
+          // Player 1 controls
+          case 37: /* left */
+            moveLeft1(false);
+            caught = true;
+            break;
+          case 39: /* right */
+            moveRight1(false);
+            caught = true;
+            break;
+          case 40: /* down */
+            drop1(false);
+            caught = true;
+            break;
+            
+          // Player 2 controls
+          case 65: /* A */
+            moveLeft2(false);
+            caught = true;
+            break;
+          case 68: /* D */
+            moveRight2(false);
+            caught = true;
+            break;
+          case 83: /* S */
+            drop2(false);
+            caught = true;
+            break;
+            
+          default:
+            caught = false;
+        }
+        
+        if (caught) evt.preventDefault();
+        return !caught;
+      };
+      
+      // Bind custom controls
+      $(document).bind('keydown.blockrain', handleKeyDown);
+      $(document).bind('keyup.blockrain', handleKeyUp);
+    }
+    
+    // Pause button handlers
+    $('.pause-btn').click(function() {
+      var player = $(this).data('player');
+      if (gameOver) return;
+      
+      if (player === 1) {
+        paused.player1 = !paused.player1;
+      } else {
+        paused.player2 = !paused.player2;
+      }
+      
+      // Update pause state for both games
+      if (paused.player1 || paused.player2) {
+        game1.blockrain('pause');
+        game2.blockrain('pause');
+        gameStatus.html('<span class="paused">Game Paused - Both players must pause to resume</span>');
+      } else {
+        game1.blockrain('resume');
+        game2.blockrain('resume');
+        gameStatus.text('');
+      }
+    });
+    
+    // Restart button handler
+    restartBtn.click(function() {
+      initGames();
+      setupControls();
+      // Start both games
+      game1.blockrain('start');
+      game2.blockrain('start');
+    });
+    
+    // Initialize games on page load
+    $(document).ready(function() {
+      initGames();
+      setupControls();
+    });
+  </script>
+</body>
+</html>
