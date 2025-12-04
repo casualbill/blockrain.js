@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Blockrain.js - Shape Editor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui" />
+  <link rel="shortcut icon" href="assets/images/favicon.png">
+  <link href='http://fonts.googleapis.com/css?family=Play:400,700' rel='stylesheet' type='text/css'>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="src/blockrain.css">
+  
+  <style>
+    .shape-editor {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      font-family: 'Play', sans-serif;
+    }
+    
+    .editor-header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    .editor-container {
+      display: flex;
+      gap: 30px;
+    }
+    
+    .editor-main {
+      flex: 1;
+    }
+    
+    .shape-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 60px);
+      grid-template-rows: repeat(5, 60px);
+      gap: 2px;
+      background-color: #333;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    
+    .grid-cell {
+      width: 60px;
+      height: 60px;
+      background-color: #fff;
+      border: 2px solid #ccc;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    
+    .grid-cell:hover {
+      background-color: #f0f0f0;
+      border-color: #999;
+    }
+    
+    .grid-cell.filled {
+      background-color: #4CAF50;
+      border-color: #2E7D32;
+    }
+    
+    .grid-cell.filled:hover {
+      background-color: #66BB6A;
+      border-color: #4CAF50;
+    }
+    
+    .editor-controls {
+      margin-bottom: 20px;
+    }
+    
+    .control-group {
+      margin-bottom: 15px;
+    }
+    
+    .control-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    
+    .control-group input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    
+    .control-group input[type="range"] {
+      width: 100%;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .btn-primary {
+      background-color: #4CAF50;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background-color: #66BB6A;
+    }
+    
+    .btn-secondary {
+      background-color: #2196F3;
+      color: white;
+    }
+    
+    .btn-secondary:hover {
+      background-color: #42A5F5;
+    }
+    
+    .btn-danger {
+      background-color: #f44336;
+      color: white;
+    }
+    
+    .btn-danger:hover {
+      background-color: #EF5350;
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .editor-sidebar {
+      width: 250px;
+    }
+    
+    .shape-list {
+      background-color: #f9f9f9;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    
+    .shape-item {
+      background-color: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 10px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .shape-item:hover {
+      border-color: #999;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .shape-item.active {
+      border-color: #4CAF50;
+      background-color: #E8F5E8;
+    }
+    
+    .shape-name {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    
+    .shape-preview {
+      display: grid;
+      grid-template-columns: repeat(3, 15px);
+      grid-template-rows: repeat(3, 15px);
+      gap: 1px;
+      background-color: #333;
+      padding: 2px;
+      border-radius: 4px;
+    }
+    
+    .preview-cell {
+      width: 15px;
+      height: 15px;
+      background-color: #fff;
+      border: 1px solid #ccc;
+    }
+    
+    .preview-cell.filled {
+      background-color: #4CAF50;
+      border-color: #2E7D32;
+    }
+    
+    .status-message {
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    
+    .status-message.success {
+      background-color: #E8F5E8;
+      color: #2E7D32;
+      border: 1px solid #4CAF50;
+    }
+    
+    .status-message.error {
+      background-color: #FFEBEE;
+      color: #C62828;
+      border: 1px solid #F44336;
+    }
+    
+    .rotation-preview {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      overflow-x: auto;
+      padding: 10px;
+      background-color: #f9f9f9;
+      border-radius: 8px;
+    }
+    
+    .rotation-item {
+      display: grid;
+      grid-template-columns: repeat(5, 20px);
+      grid-template-rows: repeat(5, 20px);
+      gap: 1px;
+      background-color: #333;
+      padding: 2px;
+      border-radius: 4px;
+    }
+    
+    .rotation-cell {
+      width: 20px;
+      height: 20px;
+      background-color: #fff;
+      border: 1px solid #ccc;
+    }
+    
+    .rotation-cell.filled {
+      background-color: #4CAF50;
+      border-color: #2E7D32;
+    }
+  </style>
+</head>
+<body>
+  
+  <div class="shape-editor">
+    <div class="editor-header">
+      <h1>Blockrain.js - Shape Editor</h1>
+      <p>Create and edit custom shapes for Blockrain.js</p>
+    </div>
+
+    <div id="status-message" class="status-message"></div>
+
+    <div class="editor-container">
+      <div class="editor-main">
+        <div class="control-group">
+          <label for="shape-name">Shape Name</label>
+          <input type="text" id="shape-name" placeholder="Enter shape name">
+        </div>
+
+        <div class="shape-grid" id="shape-grid">
+          <!-- Grid cells will be generated dynamically -->
+        </div>
+
+        <div class="rotation-preview" id="rotation-preview">
+          <!-- Rotation previews will be generated dynamically -->
+        </div>
+
+        <div class="button-group">
+          <button id="save-shape" class="btn btn-primary">Save Shape</button>
+          <button id="clear-shape" class="btn btn-secondary">Clear Shape</button>
+          <button id="delete-shape" class="btn btn-danger" disabled>Delete Shape</button>
+        </div>
+      </div>
+
+      <div class="editor-sidebar">
+        <h3>Custom Shapes</h3>
+        <div class="shape-list" id="shape-list">
+          <!-- Custom shapes will be listed here -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/jquery-1.11.1.min.js"></script>
+  <script src="src/blockrain.jquery.libs.js"></script>
+  <script src="src/blockrain.jquery.src.js"></script>
+  <script src="src/blockrain.jquery.themes.js"></script>
+  <script src="src/blockrain.customshapes.js"></script>
+
+  <script>
+    $(document).ready(function () {
+      // Initialize Blockrain game (we need it for the custom shape manager)
+      var $game = $('#game-container').blockrain();
+      var game = $game.data('blockrain');
+      var customShapeManager = game.customShapes();
+
+      var currentShapeId = null;
+      var gridSize = 5;
+      var shapeGrid = Array(gridSize * gridSize).fill(false);
+
+      // Generate shape grid
+      generateShapeGrid();
+
+      // Load custom shapes
+      loadCustomShapes();
+
+      // Event listeners
+      $('#shape-grid').on('click', '.grid-cell', function () {
+        var index = $(this).data('index');
+        shapeGrid[index] = !shapeGrid[index];
+        updateGridDisplay();
+        updateRotationPreview();
+      });
+
+      $('#save-shape').on('click', function () {
+        var shapeName = $('#shape-name').val();
+        if (!shapeName.trim()) {
+          showStatus('Please enter a shape name', 'error');
+          return;
+        }
+
+        // Convert grid to blocks array
+        var blocks = [];
+        for (var i = 0; i < shapeGrid.length; i++) {
+          if (shapeGrid[i]) {
+            blocks.push({
+              x: i % gridSize,
+              y: Math.floor(i / gridSize)
+            });
+          }
+        }
+
+        if (blocks.length === 0) {
+          showStatus('Please add at least one block to the shape', 'error');
+          return;
+        }
+
+        // Create or update shape
+        if (currentShapeId) {
+          // Update existing shape
+          var shape = customShapeManager.getAllCustomShapes().find(s => s.id === currentShapeId);
+          if (shape) {
+            // Remove old shape first
+            customShapeManager.removeCustomShape(currentShapeId);
+            
+            // Create new shape with updated data
+            var result = customShapeManager.createCustomShape(shapeName, blocks);
+            if (result.success) {
+              showStatus('Shape updated successfully', 'success');
+              currentShapeId = result.shape.id;
+              loadCustomShapes();
+            } else {
+              showStatus(result.message, 'error');
+            }
+          }
+        } else {
+          // Create new shape
+          var result = customShapeManager.createCustomShape(shapeName, blocks);
+          if (result.success) {
+            showStatus('Shape created successfully', 'success');
+            currentShapeId = result.shape.id;
+            loadCustomShapes();
+            $('#delete-shape').prop('disabled', false);
+          } else {
+            showStatus(result.message, 'error');
+          }
+        }
+      });
+
+      $('#clear-shape').on('click', function () {
+        shapeGrid = Array(gridSize * gridSize).fill(false);
+        updateGridDisplay();
+        updateRotationPreview();
+        showStatus('Shape cleared', 'success');
+      });
+
+      $('#delete-shape').on('click', function () {
+        if (currentShapeId) {
+          var result = customShapeManager.removeCustomShape(currentShapeId);
+          if (result.success) {
+            showStatus('Shape deleted successfully', 'success');
+            currentShapeId = null;
+            shapeGrid = Array(gridSize * gridSize).fill(false);
+            updateGridDisplay();
+            updateRotationPreview();
+            loadCustomShapes();
+            $('#delete-shape').prop('disabled', true);
+            $('#shape-name').val('');
+          } else {
+            showStatus(result.message, 'error');
+          }
+        }
+      });
+
+      $('#shape-list').on('click', '.shape-item', function () {
+        var shapeId = $(this).data('shape-id');
+        loadShape(shapeId);
+      });
+
+      // Helper functions
+      function generateShapeGrid() {
+        var $grid = $('#shape-grid');
+        $grid.empty();
+        
+        for (var i = 0; i < gridSize * gridSize; i++) {
+          var $cell = $('<div>')
+            .addClass('grid-cell')
+            .data('index', i);
+          $grid.append($cell);
+        }
+      }
+
+      function updateGridDisplay() {
+        var $cells = $('#shape-grid .grid-cell');
+        $cells.each(function (index) {
+          if (shapeGrid[index]) {
+            $(this).addClass('filled');
+          } else {
+            $(this).removeClass('filled');
+          }
+        });
+      }
+
+      function updateRotationPreview() {
+        // Convert grid to blocks array
+        var blocks = [];
+        for (var i = 0; i < shapeGrid.length; i++) {
+          if (shapeGrid[i]) {
+            blocks.push({
+              x: i % gridSize,
+              y: Math.floor(i / gridSize)
+            });
+          }
+        }
+
+        if (blocks.length === 0) {
+          $('#rotation-preview').empty();
+          return;
+        }
+
+        // Generate rotations
+        var rotations = customShapeManager.generateRotations(blocks);
+
+        // Update rotation preview
+        var $preview = $('#rotation-preview');
+        $preview.empty();
+
+        for (var i = 0; i < rotations.length; i++) {
+          var $rotationItem = $('<div>').addClass('rotation-item');
+          
+          // Initialize rotation grid
+          var rotationGrid = Array(gridSize * gridSize).fill(false);
+          
+          // Fill rotation grid
+          for (var j = 0; j < rotations[i].length; j += 2) {
+            var x = rotations[i][j];
+            var y = rotations[i][j + 1];
+            
+            // Check if within grid bounds
+            if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+              var index = x + y * gridSize;
+              rotationGrid[index] = true;
+            }
+          }
+          
+          // Create rotation cells
+          for (var k = 0; k < gridSize * gridSize; k++) {
+            var $cell = $('<div>').addClass('rotation-cell');
+            if (rotationGrid[k]) {
+              $cell.addClass('filled');
+            }
+            $rotationItem.append($cell);
+          }
+          
+          $preview.append($rotationItem);
+        }
+      }
+
+      function loadCustomShapes() {
+        var shapes = customShapeManager.getAllCustomShapes();
+        var $list = $('#shape-list');
+        $list.empty();
+
+        if (shapes.length === 0) {
+          $list.append('<p>No custom shapes found. Create your first shape!</p>');
+        } else {
+          shapes.forEach(function (shape) {
+            var $item = $('<div>').addClass('shape-item').data('shape-id', shape.id);
+            if (shape.id === currentShapeId) {
+              $item.addClass('active');
+            }
+
+            var $name = $('<div>').addClass('shape-name').text(shape.name);
+            var $preview = $('<div>').addClass('shape-preview');
+
+            // Create preview grid
+            var minX = shape.blocks.reduce((min, block) => Math.min(min, block.x), gridSize);
+            var minY = shape.blocks.reduce((min, block) => Math.min(min, block.y), gridSize);
+
+            for (var i = 0; i < 3 * 3; i++) {
+              var $cell = $('<div>').addClass('preview-cell');
+              
+              // Check if this cell should be filled
+              var x = (i % 3) + minX;
+              var y = Math.floor(i / 3) + minY;
+              
+              if (shape.blocks.some(block => block.x === x && block.y === y)) {
+                $cell.addClass('filled');
+              }
+              
+              $preview.append($cell);
+            }
+
+            $item.append($name).append($preview);
+            $list.append($item);
+          });
+        }
+      }
+
+      function loadShape(shapeId) {
+        var shape = customShapeManager.getAllCustomShapes().find(s => s.id === shapeId);
+        if (shape) {
+          currentShapeId = shapeId;
+
+          // Update shape name
+          $('#shape-name').val(shape.name);
+
+          // Update shape grid
+          shapeGrid = Array(gridSize * gridSize).fill(false);
+          shape.blocks.forEach(function (block) {
+            var index = block.x + block.y * gridSize;
+            shapeGrid[index] = true;
+          });
+
+          // Update displays
+          updateGridDisplay();
+          updateRotationPreview();
+          loadCustomShapes();
+
+          // Enable delete button
+          $('#delete-shape').prop('disabled', false);
+
+          showStatus('Shape loaded for editing', 'success');
+        }
+      }
+
+      function showStatus(message, type) {
+        var $status = $('#status-message');
+        $status.text(message).removeClass('success error').addClass(type).show();
+
+        // Hide status message after 5 seconds
+        setTimeout(function () {
+          $status.hide();
+        }, 5000);
+      }
+    });
+  </script>
+</body>
+</html>
