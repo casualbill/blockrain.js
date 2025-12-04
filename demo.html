@@ -1,78 +1,246 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-  <meta charset="utf-8" />
-
-  <title>Blockrain.js - A Tetris game in HTML5 + Javascript (with autoplay!)</title>
-
-  <meta name="description" content="Blockrain.js lets you embed the classic Tetris game on your website" />
-  <meta name="keywords" content="js, jquery, game, plugin, html5, tetris" />
-  <meta name="robots" content="INDEX, FOLLOW" />
-  <meta name="author" content="Aerolab" />
-
-  <!-- Facebook Stuff -->
-  <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Blockrain.js" />
-  <meta property="og:title" content="Blockrain.js - a Tetris game in HTML5 + Javascript" />
-  <meta property="og:description" content="Blockrain.js lets you embed the classic Tetris game on your website" />
-  <meta property="og:image" content="http://aerolab.github.io/blockrain.js/assets/images/social-card.png" />
-  <meta property="og:url" content="http://aerolab.github.io/blockrain.js" />
-  <meta property="fb:app_id" content="344819049029949" />
-  
-  <!-- Twitter Stuff -->
-  <meta property="twitter:card" content="summary" />
-  <meta property="twitter:site" content="@aerolab" />
-  <meta property="twitter:title" content="Blockrain.js - a Tetris game in HTML5 + Javascript" />
-  <meta property="twitter:description" content="Blockrain.js lets you embed the classic Tetris game on your website" />
-  <meta property="twitter:image" content="http://aerolab.github.io/blockrain.js/assets/images/social-card.png" />
-  <meta property="twitter:url" content="http://aerolab.github.io/blockrain.js" />
-
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui" />
-  <link rel="shortcut icon" href="assets/images/favicon.png">
-
-  <link href='http://fonts.googleapis.com/css?family=Play:400,700' rel='stylesheet' type='text/css'>
-  <link rel="stylesheet" href="assets/css/style.css">
-  <link rel="stylesheet" href="src/blockrain.css">
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>俄罗斯方块 - 自定义形状演示</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        .game-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn.secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);
+        }
+        
+        .btn.secondary:hover {
+            box-shadow: 0 6px 20px rgba(245, 87, 108, 0.6);
+        }
+        
+        .info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .info h3 {
+            margin-top: 0;
+            color: #667eea;
+        }
+        
+        .info ul {
+            margin: 10px 0 0 20px;
+            color: #555;
+        }
+        
+        .settings {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .setting-item {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .setting-item label {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .setting-item input[type="range"] {
+            width: 200px;
+        }
+        
+        .setting-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        
+        .score-display {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f0f4ff;
+            border-radius: 10px;
+        }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <h1>🎮 俄罗斯方块 - 自定义形状版</h1>
+        
+        <div class="info">
+            <h3>功能说明</h3>
+            <ul>
+                <li>支持创建自定义形状（最多20个）</li>
+                <li>自定义形状会随机出现在游戏中</li>
+                <li>可以调整自定义形状的出现概率</li>
+                <li>使用方向键或ASDW键控制</li>
+                <li>空格键快速下落</li>
+            </ul>
+        </div>
 
+        <div class="settings">
+            <h3>游戏设置</h3>
+            <div class="setting-item">
+                <label for="customShapesProbability">自定义形状概率:</label>
+                <div>
+                    <input type="range" id="customShapesProbability" min="0" max="1" step="0.1" value="0.3">
+                    <span id="probabilityValue">30%</span>
+                </div>
+            </div>
+            <div class="setting-item">
+                <label for="enableCustomShapes">启用自定义形状:</label>
+                <input type="checkbox" id="enableCustomShapes" checked>
+            </div>
+        </div>
 
-<section id="examples">
+        <div class="score-display">
+            得分: <span id="score">0</span>
+        </div>
 
-  <header>
-    <h1>Check out the demo</h1>
-  </header>
+        <div class="game-container">
+            <div id="tetris"></div>
+        </div>
 
-  <article id="example-slider">
-    <div class="example">
-      <div class="game" id="tetris-demo"></div>
-      <div class="game" id="tetris-demo-2"></div>
+        <div class="controls">
+            <button class="btn" onclick="startGame()">开始游戏</button>
+            <button class="btn secondary" onclick="openEditor()">形状编辑器</button>
+        </div>
     </div>
-  </article>
 
-</section>
+    <script src="assets/js/jquery-1.11.1.min.js"></script>
+    <script src="src/blockrain.jquery.libs.js"></script>
+    <script src="src/blockrain.jquery.src.js"></script>
+    <script src="src/blockrain.jquery.themes.js"></script>
+    
+    <script>
+        var game;
+        var score = 0;
 
-<script src="assets/js/jquery-1.11.1.min.js"></script>
-<script src="src/blockrain.jquery.libs.js"></script>
-<script src="src/blockrain.jquery.src.js"></script>
-<script src="src/blockrain.jquery.themes.js"></script>
+        // 初始化游戏
+        function initGame() {
+            $('#tetris').blockrain({
+                theme: 'classic',
+                speed: 20,
+                enableCustomShapes: $('#enableCustomShapes').is(':checked'),
+                customShapesProbability: parseFloat($('#customShapesProbability').val()),
+                onGameOver: function(s) {
+                    score = s;
+                    $('#score').text(score);
+                    alert('游戏结束! 得分: ' + score);
+                },
+                onLine: function(lines, scoreIncrement, totalScore) {
+                    score = totalScore;
+                    $('#score').text(score);
+                }
+            });
+            game = $('#tetris').data('plugin_blockrain');
+        }
 
-<script>
+        // 开始游戏
+        function startGame() {
+            if (game) {
+                game.restart();
+                score = 0;
+                $('#score').text(score);
+            }
+        }
 
-  var $demo = $('#tetris-demo').blockrain({
-    speed: 100,
-    theme: 'modern',
-    autoplay: true
-  });
+        // 打开形状编辑器
+        function openEditor() {
+            window.open('custom-shape-editor.html', '_blank', 'width=900,height=700');
+        }
 
-  var $demo2 = $('#tetris-demo-2').blockrain({
-    speed: 100,
-    theme: 'candy',
-    autoplay: true
-  });
+        // 设置事件监听
+        $('#customShapesProbability').on('input', function() {
+            var value = parseFloat($(this).val());
+            $('#probabilityValue').text(Math.round(value * 100) + '%');
+            
+            if (game) {
+                game.options.customShapesProbability = value;
+            }
+        });
 
-</script>
+        $('#enableCustomShapes').on('change', function() {
+            var enabled = $(this).is(':checked');
+            if (game) {
+                game.options.enableCustomShapes = enabled;
+            }
+        });
 
+        // 页面加载完成后初始化
+        $(document).ready(function() {
+            initGame();
+        });
+    </script>
 </body>
 </html>

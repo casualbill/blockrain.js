@@ -16,6 +16,10 @@
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
 
+      // Custom Shapes
+      enableCustomShapes: true, // Enable custom shapes
+      customShapesProbability: 0.3, // Probability of custom shapes appearing (0-1)
+
       // Copy
       playText: 'Let\'s play some Tetris',
       playButtonText: 'Play',
@@ -408,6 +412,86 @@
       ]
     },
 
+    // Custom shapes storage
+    _customShapes: {},
+
+    // Load custom shapes from localStorage
+    _loadCustomShapes: function() {
+      try {
+        var savedShapes = JSON.parse(localStorage.getItem('blockrain_custom_shapes') || '[]');
+        
+        // Process each custom shape
+        for (var shape of savedShapes) {
+          if (shape.enabled && shape.blocks && shape.blocks.length > 0) {
+            this._addCustomShape(shape);
+          }
+        }
+      } catch (e) {
+        console.error('Error loading custom shapes:', e);
+      }
+    },
+
+    // Add a custom shape to the shape factory
+    _addCustomShape: function(shapeData) {
+      var game = this;
+      
+      // Convert blocks to the internal format (relative to center point)
+      var orientations = this._generateShapeOrientations(shapeData.blocks);
+      
+      // Add to shape factory
+      this._shapeFactory[shapeData.id] = function() {
+        return new Shape(game, orientations, false, shapeData.id);
+      };
+      
+      // Store shape data
+      this._customShapes[shapeData.id] = {
+        name: shapeData.name,
+        probability: shapeData.probability,
+        enabled: shapeData.enabled
+      };
+    },
+
+    // Generate all 4 orientations for a custom shape
+    _generateShapeOrientations: function(blocks) {
+      var orientations = [];
+      
+      // Convert blocks to relative coordinates (center at (2,2))
+      var relativeBlocks = blocks.map(function(block) {
+        return [block.x - 2, block.y - 2];
+      });
+      
+      // Generate 4 rotations
+      for (var rotation = 0; rotation < 4; rotation++) {
+        var rotated = this._rotateShape(relativeBlocks, rotation);
+        orientations.push(this._flattenBlocks(rotated));
+      }
+      
+      return orientations;
+    },
+
+    // Rotate a shape by 90 degrees clockwise
+    _rotateShape: function(blocks, rotations) {
+      var rotated = blocks.slice();
+      
+      for (var r = 0; r < rotations; r++) {
+        rotated = rotated.map(function(block) {
+          // Rotate 90 degrees clockwise around origin
+          return [block[1], -block[0]];
+        });
+      }
+      
+      return rotated;
+    },
+
+    // Flatten blocks array from [[x1,y1], [x2,y2], ...] to [x1,y1,x2,y2,...]
+    _flattenBlocks: function(blocks) {
+      var result = [];
+      for (var block of blocks) {
+        result.push(block[0], block[1]);
+      }
+      return result;
+    },
+
     _SetupShapeFactory: function(){
       var game = this;
       if( this._shapeFactory !== null ){ return; }
@@ -567,6 +651,9 @@
           return new Shape(game, game._shapes.rightZag, false, 'rightZag');
         }
       };
+
+      // Load custom shapes
+      this._loadCustomShapes();
     },
 
 
@@ -1412,8 +1499,26 @@
     _randomShapes: function() {
       // Todo: The shapefuncs should be cached.
       var shapeFuncs = [];
-      $.each(this._shapeFactory, function(k,v) { shapeFuncs.push(v); });
+      var customShapeFuncs = [];
+      
+      // Separate standard and custom shapes
+      $.each(this._shapeFactory, function(k,v) {
+        if (k.startsWith('custom_')) {
+          customShapeFuncs.push(v);
+        } else {
+          shapeFuncs.push(v);
+        }
+      });
 
+      // Check if custom shapes are enabled and we have any
+      if (this.options.enableCustomShapes && customShapeFuncs.length > 0) {
+        // Randomly decide to use custom shape based on probability
+        if (Math.random() < this.options.customShapesProbability) {
+          return this._randChoice(customShapeFuncs);
+        }
+      }
+
+      // Fallback to standard shapes
       return this._randChoice(shapeFuncs);
     },
 
