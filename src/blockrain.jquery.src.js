@@ -15,6 +15,7 @@
       difficulty: 'normal', // Difficulty (normal|nice|evil).
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
+      customArea: null, // Custom game area grid (2D array: true = available, false = unavailable)
 
       // Copy
       playText: 'Let\'s play some Tetris',
@@ -250,9 +251,20 @@
         a = x + blocks[i];
         b = y + blocks[i+1];
 
-        if (b >= this._BLOCK_HEIGHT || this._filled.check(a, b)) {
+        // Check if the position is within the grid bounds
+        if (a < 0 || a >= this._BLOCK_WIDTH || b >= this._BLOCK_HEIGHT) {
           return true;
-        } else if (!checkDownOnly && a < 0 || a >= this._BLOCK_WIDTH) {
+        }
+        
+        // Check if the position is available in the custom area (if set)
+        if (this.options.customArea && b >= 0) {
+          if (!this.options.customArea[b] || !this.options.customArea[b][a]) {
+            return true;
+          }
+        }
+        
+        // Check if the position is already filled by a block
+        if (this._filled.check(a, b)) {
           return true;
         }
       }
@@ -617,16 +629,31 @@
         },
         checkForClears: function() {
           var startLines = game._board.lines;
-          var rows = [], i, len, count, mod;
+          var rows = [], i, len, count, mod, y, x;
 
-          for (i=0, len=this.data.length; i<len; i++) {
-            mod = this.asX(i);
-            if (mod == 0) count = 0;
-            if (this.data[i] && typeof this.data[i] !== 'undefined' && typeof this.data[i].blockType === 'string') {
-              count += 1;
+          for (y=0; y<game._BLOCK_HEIGHT; y++) {
+            count = 0;
+            var availableCells = 0;
+            
+            for (x=0; x<game._BLOCK_WIDTH; x++) {
+              // Check if this cell is available in the custom area (if set)
+              var isAvailable = true;
+              if (game.options.customArea) {
+                isAvailable = game.options.customArea[y] && game.options.customArea[y][x];
+              }
+              
+              if (isAvailable) {
+                availableCells++;
+                // Check if this cell is filled by a block
+                if (this.data[this.asIndex(x, y)] && typeof this.data[this.asIndex(x, y)] !== 'undefined' && typeof this.data[this.asIndex(x, y)].blockType === 'string') {
+                  count += 1;
+                }
+              }
             }
-            if (mod == game._BLOCK_WIDTH - 1 && count == game._BLOCK_WIDTH) {
-              rows.push(this.asY(i));
+            
+            // Only clear the row if all available cells are filled
+            if (availableCells > 0 && count == availableCells) {
+              rows.push(y);
             }
           }
 
