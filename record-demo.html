@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+
+  <title>Blockrain.js - 游戏录制功能演示</title>
+
+  <meta name="description" content="Blockrain.js 游戏录制功能演示" />
+  <meta name="keywords" content="js, jquery, game, plugin, html5, tetris, recording" />
+  <meta name="robots" content="INDEX, FOLLOW" />
+  <meta name="author" content="Aerolab" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui" />
+  <link rel="shortcut icon" href="assets/images/favicon.png">
+
+  <link href='http://fonts.googleapis.com/css?family=Play:400,700' rel='stylesheet' type='text/css'>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="src/blockrain.css">
+
+  <style>
+    /* 全局样式重置 */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Play', sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+      padding: 20px;
+    }
+
+    /* 页面标题 */
+    #examples header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    #examples header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+      color: #4CAF50;
+    }
+
+    #examples header p {
+      font-size: 16px;
+      color: #ccc;
+    }
+
+    /* 录制功能样式 */
+    .recording-controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #333;
+    }
+
+    .recording-btn {
+      position: relative;
+      display: block;
+      width: 100%;
+      background: none;
+      color: #ffffff;
+      text-decoration: none;
+      border: 2px solid #ffffff;
+      padding: 8px 15px;
+      font-size: 12px;
+      text-align: center;
+      cursor: pointer;
+      margin-bottom: 5px;
+      transition: all 0.2s ease;
+      font-family: 'Play', sans-serif;
+    }
+
+    .recording-btn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .recording-btn.start {
+      border-color: #4CAF50;
+      color: #4CAF50;
+    }
+
+    .recording-btn.start:hover:not(:disabled) {
+      background: rgba(76, 175, 80, 0.2);
+    }
+
+    .recording-btn.stop {
+      border-color: #f44336;
+      color: #f44336;
+    }
+
+    .recording-btn.stop:hover:not(:disabled) {
+      background: rgba(244, 67, 54, 0.2);
+    }
+
+    .recording-btn.export {
+      border-color: #2196F3;
+      color: #2196F3;
+    }
+
+    .recording-btn.export:hover:not(:disabled) {
+      background: rgba(33, 150, 243, 0.2);
+    }
+
+    .recording-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .recording-status {
+      display: block;
+      color: #ffffff;
+      font-size: 12px;
+      margin-top: 10px;
+      padding: 5px;
+      background: rgba(244, 67, 54, 0.2);
+      border-radius: 3px;
+      text-align: center;
+    }
+
+    .recording-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #f44336;
+      margin-right: 5px;
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .format-selector {
+      margin-bottom: 10px;
+    }
+
+    .format-selector label {
+      display: block;
+      color: #ffffff;
+      font-size: 11px;
+      margin-bottom: 5px;
+      text-align: center;
+    }
+
+    .format-selector select {
+      width: 100%;
+      padding: 5px;
+      border: 1px solid #ffffff;
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+      font-size: 11px;
+      font-family: 'Play', sans-serif;
+    }
+
+    .format-selector select option {
+      background: #333;
+    }
+
+    .game-container {
+      position: relative;
+      width: 320px;
+      height: 620px;
+      margin: 0 auto;
+      background: #000;
+      border: 3px solid #4CAF50;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 0 20px rgba(76, 175, 80, 0.3);
+    }
+
+    .game {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 确保Blockrain的UI元素正确显示 */
+    .blockrain-game-holder {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    .blockrain-score-holder {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 50;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 5px 10px;
+      border-radius: 5px;
+      border: 1px solid #333;
+    }
+
+    .blockrain-start-holder, .blockrain-game-over-holder {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 200;
+      background: rgba(0, 0, 0, 0.9);
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .blockrain-start, .blockrain-game-over {
+      position: relative;
+      top: auto;
+      left: auto;
+      transform: none;
+    }
+  </style>
+</head>
+<body>
+
+<section id="examples">
+  <header>
+    <h1>Blockrain.js 游戏录制功能演示</h1>
+    <p>演示游戏录制、导出功能</p>
+  </header>
+
+  <article id="example-slider">
+    <div class="game-container">
+      <div class="recording-controls">
+        <div class="format-selector">
+          <label for="video-format">视频格式:</label>
+          <select id="video-format">
+            <option value="webm-vp9">WebM (VP9)</option>
+            <option value="webm-vp8">WebM (VP8)</option>
+            <option value="mp4">MP4 (H.264)</option>
+            <option value="mkv">MKV (H.264)</option>
+          </select>
+        </div>
+        <button id="start-recording" class="recording-btn start">开始录制</button>
+        <button id="stop-recording" class="recording-btn stop" disabled>停止录制</button>
+        <button id="export-video" class="recording-btn export" disabled>导出视频</button>
+        <div id="recording-status" class="recording-status" style="display: none;">
+          <span class="recording-indicator"></span>
+          <span>正在录制</span>
+        </div>
+      </div>
+      <div class="game" id="tetris-recording-demo"></div>
+    </div>
+  </article>
+</section>
+
+<script src="assets/js/jquery-1.11.1.min.js"></script>
+<script src="src/blockrain.jquery.libs.js"></script>
+<script src="src/blockrain.jquery.src.js"></script>
+<script src="src/blockrain.jquery.themes.js"></script>
+
+<script>
+    // 录制功能相关变量
+    var mediaRecorder;
+    var recordedChunks = [];
+    var isRecording = false;
+    var recordingStartTime;
+    var $game = null;
+    var stream;
+    var canvas;
+    var ctx;
+
+  $(document).ready(function() {
+    // 初始化游戏
+    $game = $('#tetris-recording-demo').blockrain({
+      speed: 20,
+      theme: 'modern',
+      autoplay: false,
+      onStart: function() {
+        // 游戏开始时启用录制按钮
+        $('#start-recording').prop('disabled', false);
+      },
+      onGameOver: function(score) {
+        // 游戏结束时自动停止录制
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          stopRecording();
+        }
+      }
+    });
+    
+    console.log('Game initialized successfully');
+
+    // 获取游戏容器和canvas
+      var gameContainer = document.getElementById('tetris-recording-demo');
+      setTimeout(function() {
+        canvas = $('#tetris-recording-demo canvas')[0];
+        if (canvas) {
+          console.log('Canvas found:', canvas);
+          ctx = canvas.getContext('2d');
+        } else {
+          console.error('Canvas not found');
+        }
+      }, 1000);
+
+    // 创建录制流
+    function createRecordingStream() {
+      if (!canvas) return null;
+
+      // 创建一个隐藏的canvas用于录制
+      var recordingCanvas = document.createElement('canvas');
+      recordingCanvas.width = canvas.width;
+      recordingCanvas.height = canvas.height;
+      var recordingCtx = recordingCanvas.getContext('2d');
+
+      // 定期绘制游戏画面
+        function drawGameFrame() {
+          if (isRecording && canvas) {
+            // 绘制游戏画面
+            recordingCtx.drawImage(canvas, 0, 0);
+
+            // 添加录制状态信息
+            recordingCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            recordingCtx.fillRect(10, 10, 200, 60);
+            recordingCtx.fillStyle = '#fff';
+            recordingCtx.font = '14px Arial';
+            recordingCtx.fillText('Recording...', 20, 30);
+
+            // 显示录制时间
+            const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+            recordingCtx.fillText('Time: ' + elapsed + 's', 20, 50);
+
+            // 绘制分数
+            const score = $game.blockrain('score');
+            recordingCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            recordingCtx.fillRect(recordingCanvas.width - 120, 10, 110, 30);
+            recordingCtx.fillStyle = '#fff';
+            recordingCtx.font = '14px Arial';
+            recordingCtx.textAlign = 'right';
+            recordingCtx.fillText('Score: ' + score, recordingCanvas.width - 20, 30);
+          }
+          requestAnimationFrame(drawGameFrame);
+        }
+
+      drawGameFrame();
+
+      // 返回canvas的流
+      return recordingCanvas.captureStream(60); // 60fps
+    }
+
+    // 开始录制
+    $('#start-recording').click(function() {
+      if (!canvas) {
+        alert('游戏canvas未找到，请确保游戏已正确加载！');
+        return;
+      }
+
+      // 获取选中的视频格式
+      const selectedFormat = $('#video-format').val();
+      let mimeType = 'video/webm;codecs=vp9';
+
+      // 根据选择设置不同的MIME类型
+      if (selectedFormat === 'mp4') {
+        mimeType = 'video/mp4;codecs=avc1.42E01E,mp4a.40.2';
+      } else if (selectedFormat === 'webm-vp8') {
+        mimeType = 'video/webm;codecs=vp8';
+      } else if (selectedFormat === 'webm-vp9') {
+        mimeType = 'video/webm;codecs=vp9';
+      } else if (selectedFormat === 'mkv') {
+        mimeType = 'video/x-matroska;codecs=avc1';
+      }
+
+      // 创建录制流
+      stream = createRecordingStream();
+
+      // 检查浏览器是否支持所选格式
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        alert('您的浏览器不支持所选的视频格式，将使用默认格式(WebM VP9)');
+        mimeType = 'video/webm;codecs=vp9';
+      }
+
+      // 配置MediaRecorder
+      mediaRecorder = new MediaRecorder(stream, {
+        mimeType: mimeType,
+        videoBitsPerSecond: 5000000 // 5Mbps
+      });
+
+      // 监听数据可用事件
+      mediaRecorder.ondataavailable = function(e) {
+        if (e.data.size > 0) {
+          recordedChunks.push(e.data);
+        }
+      };
+
+      // 监听录制停止事件
+      mediaRecorder.onstop = function() {
+        // 启用导出按钮
+        $('#export-video').prop('disabled', false);
+        isRecording = false;
+      };
+
+      // 开始录制
+      recordingStartTime = Date.now();
+      isRecording = true;
+      mediaRecorder.start();
+
+      // 更新UI状态
+      $('#start-recording').prop('disabled', true);
+      $('#stop-recording').prop('disabled', false);
+      $('#recording-status').show();
+
+      console.log('录制开始，格式:', selectedFormat);
+    });
+
+    // 停止录制
+    $('#stop-recording').click(function() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        isRecording = false;
+        
+        // 更新UI状态
+        $('#start-recording').prop('disabled', false);
+        $('#stop-recording').prop('disabled', true);
+        $('#recording-status').hide();
+      }
+    });
+
+    // 导出视频按钮点击事件
+    $('#export-video').click(function() {
+      if (recordedChunks.length > 0) {
+        // 获取选中的视频格式
+        var selectedFormat = $('#video-format').val();
+        var mimeType = 'video/webm;codecs=vp9';
+        
+        // 根据选择设置不同的MIME类型
+        if (selectedFormat === 'mp4') {
+          mimeType = 'video/mp4;codecs=avc1.42E01E,mp4a.40.2';
+        } else if (selectedFormat === 'webm-vp8') {
+          mimeType = 'video/webm;codecs=vp8';
+        } else if (selectedFormat === 'webm-vp9') {
+          mimeType = 'video/webm;codecs=vp9';
+        } else if (selectedFormat === 'mkv') {
+          mimeType = 'video/x-matroska;codecs=avc1';
+        }
+        
+        // 创建Blob对象
+        var blob = new Blob(recordedChunks, {
+          type: mimeType
+        });
+        
+        // 创建下载链接
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'tetris-recording-' + Date.now() + '.' + selectedFormat;
+        a.click();
+        
+        // 清理
+        URL.revokeObjectURL(url);
+      } else {
+        alert('没有可导出的录制内容！');
+      }
+    });
+
+    // 页面卸载时清理
+    $(window).unload(function() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    });
+  });
+</script>
+
+</body>
+</html>
