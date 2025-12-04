@@ -220,6 +220,7 @@
       });
 
       this._SetupShapeFactory();
+      this._SetupCustomShapeManager();
       this._SetupFilled();
       this._SetupInfo();
       this._SetupBoard();
@@ -321,6 +322,7 @@
      * Shapes
      */
     _shapeFactory: null,
+    _customShapeManager: null,
 
     _shapes: {
       /**
@@ -567,6 +569,29 @@
           return new Shape(game, game._shapes.rightZag, false, 'rightZag');
         }
       };
+    },
+
+    _SetupCustomShapeManager: function() {
+      var game = this;
+      if (this._customShapeManager) { return; }
+
+      // 导入自定义形状管理器
+      if (typeof CustomShapeManager !== 'undefined') {
+        game._customShapeManager = new CustomShapeManager();
+        
+        // 加载所有自定义形状
+        var customShapes = game._customShapeManager.getCustomShapes();
+        
+        // 将自定义形状添加到形状工厂
+        for (var i = 0; i < customShapes.length; i++) {
+          var shape = customShapes[i];
+          (function(shape) {
+            game._shapeFactory['custom_' + shape.id] = function() {
+              return new Shape(game, shape.directions, false, 'custom_' + shape.id);
+            };
+          })(shape);
+        }
+      }
     },
 
 
