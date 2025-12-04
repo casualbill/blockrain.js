@@ -10,8 +10,10 @@
       showFieldOnStart: true, // Show a bunch of random blocks on the start screen (it looks nice)
       theme: null, // The theme name or a theme object
       blockWidth: 10, // How many blocks wide the field is (The standard is 10 blocks)
+      blockHeight: 20, // How many blocks tall the field is (The standard is 20 blocks)
       autoBlockWidth: false, // The blockWidth is dinamically calculated based on the autoBlockSize. Disabled blockWidth. Useful for responsive backgrounds
       autoBlockSize: 24, // The max size of a block for autowidth mode
+      customArea: null, // Custom game area configuration
       difficulty: 'normal', // Difficulty (normal|nice|evil).
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
@@ -78,6 +80,338 @@
       this._board.paused = false;
     },
 
+    /**
+     * Saves a custom area to localStorage
+     * @param {string} name - The name of the custom area
+     * @param {array} grid - The grid data for the custom area (1 for available, 0 for unavailable)
+     * @returns {boolean} True if saved successfully, false if limit reached
+     */
+    saveCustomArea: function(name, grid) {
+      return this._saveCustomArea(name, grid);
+    },
+
+    /**
+     * Loads a custom area by name
+     * @param {string} name - The name of the custom area to load
+     * @returns {boolean} True if loaded successfully, false if not found
+     */
+    loadCustomArea: function(name) {
+      return this._loadCustomArea(name);
+    },
+
+    /**
+     * Deletes a custom area by name
+     * @param {string} name - The name of the custom area to delete
+     */
+    deleteCustomArea: function(name) {
+      this._deleteCustomArea(name);
+    },
+
+    /**
+     * Exports a custom area as a JSON file
+     * @param {string} name - The name of the custom area to export
+     * @returns {boolean} True if exported successfully, false if not found
+     */
+    exportCustomArea: function(name) {
+      return this._exportCustomArea(name);
+    },
+
+    /**
+     * Imports a custom area from a JSON file
+     * @param {File} file - The JSON file containing the custom area
+     */
+    importCustomArea: function(file) {
+      this._importCustomArea(file);
+    },
+
+    /**
+     * Gets all saved custom areas
+     * @returns {array} An array of saved custom areas
+     */
+    getSavedAreas: function() {
+      return this._getSavedAreas();
+    },
+
+    /**
+     * Validates a custom area grid
+     * @param {array} grid - The grid data to validate
+     * @returns {boolean} True if the grid is valid, false otherwise
+     */
+    validateCustomArea: function(grid) {
+      return this._validateCustomArea(grid);
+    },
+
+    /**
+     * Shows the custom area editor
+     */
+    showCustomAreaEditor: function() {
+      this._$editor.show();
+      this._$start.hide();
+      this._editorBlockSize = Math.min(20, Math.floor(300 / this._BLOCK_WIDTH));
+      this._editorCanvas.width = this._BLOCK_WIDTH * this._editorBlockSize;
+      this._editorCanvas.height = this._BLOCK_HEIGHT * this._editorBlockSize;
+      this._drawEditorGrid();
+      this._setupEditorEvents();
+    },
+
+    /**
+     * Hides the custom area editor
+     */
+    hideCustomAreaEditor: function() {
+      this._$editor.hide();
+      this._$start.show();
+      this._teardownEditorEvents();
+    },
+
+    /**
+     * Draws the editor grid
+     */
+    _drawEditorGrid: function() {
+      var ctx = this._editorCtx;
+      var blockSize = this._editorBlockSize;
+      
+      // Clear canvas
+      ctx.clearRect(0, 0, this._editorCanvas.width, this._editorCanvas.height);
+      
+      // Draw grid cells
+      for (var x = 0; x < this._BLOCK_WIDTH; x++) {
+        for (var y = 0; y < this._BLOCK_HEIGHT; y++) {
+          var index = y * this._BLOCK_WIDTH + x;
+          var isAvailable = this._editorGrid[index] === 1;
+          
+          // Set fill color based on availability
+          ctx.fillStyle = isAvailable ? '#ffffff' : '#333333';
+          ctx.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
+          
+          // Draw grid lines
+          ctx.strokeStyle = '#cccccc';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x * blockSize, y * blockSize, blockSize, blockSize);
+        }
+      }
+    },
+
+    /**
+     * Sets up editor mouse events
+     */
+    _setupEditorEvents: function() {
+      var game = this;
+      
+      // Define event handlers as named functions
+      game._editorMouseDown = function(e) {
+        game._isEditorDrawing = true;
+        game._handleEditorMouse(e);
+      };
+      
+      game._editorMouseMove = function(e) {
+        if (game._isEditorDrawing) {
+          game._handleEditorMouse(e);
+        }
+      };
+      
+      game._editorMouseUp = function() {
+        game._isEditorDrawing = false;
+      };
+      
+      game._editorMouseLeave = function() {
+        game._isEditorDrawing = false;
+      };
+      
+      // Add event listeners
+      game._editorCanvas.addEventListener('mousedown', game._editorMouseDown);
+      game._editorCanvas.addEventListener('mousemove', game._editorMouseMove);
+      game._editorCanvas.addEventListener('mouseup', game._editorMouseUp);
+      game._editorCanvas.addEventListener('mouseleave', game._editorMouseLeave);
+    },
+
+    /**
+     * Tears down editor mouse events
+     */
+    _teardownEditorEvents: function() {
+      var game = this;
+      
+      // Remove event listeners using the same function references
+      if (game._editorMouseDown) {
+        game._editorCanvas.removeEventListener('mousedown', game._editorMouseDown);
+      }
+      if (game._editorMouseMove) {
+        game._editorCanvas.removeEventListener('mousemove', game._editorMouseMove);
+      }
+      if (game._editorMouseUp) {
+        game._editorCanvas.removeEventListener('mouseup', game._editorMouseUp);
+      }
+      if (game._editorMouseLeave) {
+        game._editorCanvas.removeEventListener('mouseleave', game._editorMouseLeave);
+      }
+      
+      // Clean up references
+      delete game._editorMouseDown;
+      delete game._editorMouseMove;
+      delete game._editorMouseUp;
+      delete game._editorMouseLeave;
+    },
+
+    /**
+     * Handles editor mouse events
+     */
+    _handleEditorMouse: function(e) {
+      var rect = this._editorCanvas.getBoundingClientRect();
+      var x = Math.floor((e.clientX - rect.left) / this._editorBlockSize);
+      var y = Math.floor((e.clientY - rect.top) / this._editorBlockSize);
+      
+      // Check if click is within grid bounds
+      if (x >= 0 && x < this._BLOCK_WIDTH && y >= 0 && y < this._BLOCK_HEIGHT) {
+        var index = y * this._BLOCK_WIDTH + x;
+        var activeTool = this._$editor.find('.blockrain-editor-tool.active').data('tool');
+        
+        switch (activeTool) {
+          case 'brush':
+            this._editorGrid[index] = 1;
+            break;
+          case 'erase':
+            this._editorGrid[index] = 0;
+            break;
+          case 'fill':
+            this._floodFill(x, y, this._editorGrid[index], this._editorGrid[index] === 1 ? 0 : 1);
+            break;
+          case 'clear':
+            this._editorGrid.fill(0);
+            break;
+        }
+        
+        this._drawEditorGrid();
+      }
+    },
+
+    /**
+     * Flood fill algorithm for editor
+     */
+    _floodFill: function(startX, startY, targetValue, replacementValue) {
+      if (targetValue === replacementValue) return;
+      
+      var queue = [{x: startX, y: startY}];
+      var visited = new Set();
+      
+      while (queue.length > 0) {
+        var {x, y} = queue.shift();
+        var index = y * this._BLOCK_WIDTH + x;
+        
+        if (x < 0 || x >= this._BLOCK_WIDTH || y < 0 || y >= this._BLOCK_HEIGHT ||
+            visited.has(index) || this._editorGrid[index] !== targetValue) {
+          continue;
+        }
+        
+        visited.add(index);
+        this._editorGrid[index] = replacementValue;
+        
+        // Add neighboring cells
+        queue.push({x: x + 1, y: y});
+        queue.push({x: x - 1, y: y});
+        queue.push({x: x, y: y + 1});
+        queue.push({x: x, y: y - 1});
+      }
+    },
+
+    /**
+     * Saves the current custom area
+     */
+    saveCurrentCustomArea: function() {
+      var name = this._$editor.find('.blockrain-editor-name').val().trim();
+      if (!name) {
+        this._showEditorStatus('请输入区域名称', 'error');
+        return;
+      }
+      
+      if (!this.validateCustomArea(this._editorGrid)) {
+        this._showEditorStatus('区域验证失败：没有从顶部到底部的有效路径', 'error');
+        return;
+      }
+      
+      if (this.saveCustomArea(name, this._editorGrid)) {
+        this._showEditorStatus('区域保存成功', 'success');
+      } else {
+        this._showEditorStatus('区域保存失败：已达到最大数量限制（10个）', 'error');
+      }
+    },
+
+    /**
+     * Shows the load area dropdown
+     */
+    showLoadAreaDropdown: function() {
+      var game = this;
+      var areas = this.getSavedAreas();
+      var dropdownContent = game._$loadDropdown.find('.blockrain-load-dropdown-content');
+      
+      dropdownContent.empty();
+      
+      if (areas.length === 0) {
+        dropdownContent.append('<div class="blockrain-load-dropdown-item">没有保存的区域</div>');
+      } else {
+        areas.forEach(function(area) {
+          var item = $('<div class="blockrain-load-dropdown-item">' + area.name + '</div>');
+          item.click(function() {
+            game.loadCustomArea(area.name);
+            game._editorGrid = area.grid.slice();
+            game._drawEditorGrid();
+            game._$editor.find('.blockrain-editor-name').val(area.name);
+            game._$loadDropdown.hide();
+          });
+          dropdownContent.append(item);
+        });
+      }
+      
+      var loadBtn = game._$editor.find('.blockrain-editor-btn-load');
+      var btnOffset = loadBtn.offset();
+      game._$loadDropdown.css({
+        top: btnOffset.top + loadBtn.outerHeight() + 5,
+        left: btnOffset.left
+      }).show();
+      
+      // Close dropdown when clicking outside
+      setTimeout(function() {
+        $(document).one('click', function() {
+          game._$loadDropdown.hide();
+        });
+      }, 10);
+    },
+
+    /**
+     * Exports the current custom area
+     */
+    exportCurrentCustomArea: function() {
+      var name = this._$editor.find('.blockrain-editor-name').val().trim();
+      if (!name) {
+        this._showEditorStatus('请输入区域名称', 'error');
+        return;
+      }
+      
+      var area = { name: name, grid: this._editorGrid };
+      var dataStr = JSON.stringify(area, null, 2);
+      var dataBlob = new Blob([dataStr], { type: 'application/json' });
+      var url = URL.createObjectURL(dataBlob);
+      var link = document.createElement('a');
+      link.href = url;
+      link.download = 'blockrain_area_' + name + '.json';
+      link.click();
+      URL.revokeObjectURL(url);
+      
+      this._showEditorStatus('区域导出成功', 'success');
+    },
+
+    /**
+     * Shows editor status message
+     */
+    _showEditorStatus: function(message, type) {
+      var status = this._$editor.find('.blockrain-editor-status');
+      status.text(message);
+      status.removeClass('error success').addClass(type);
+      status.show();
+      
+      setTimeout(function() {
+        status.hide();
+      }, 3000);
+    },
+
     autoplay: function(enable) {
       if( typeof enable !== 'boolean' ){ enable = true; }
 
@@ -129,7 +463,7 @@
       this._PIXEL_HEIGHT = this.element.innerHeight();
 
       this._BLOCK_WIDTH = this.options.blockWidth;
-      this._BLOCK_HEIGHT = Math.floor(this.element.innerHeight() / this.element.innerWidth() * this._BLOCK_WIDTH);
+      this._BLOCK_HEIGHT = this.options.blockHeight || Math.floor(this.element.innerHeight() / this.element.innerWidth() * this._BLOCK_WIDTH);
 
       this._block_size = Math.floor(this._PIXEL_WIDTH / this._BLOCK_WIDTH);
       this._border_width = 2;
@@ -209,11 +543,9 @@
       this.theme(this.options.theme);
 
       this._createHolder();
-      this._createUI();
-
       this._refreshBlockSizes();
-
       this.updateSizes();
+      this._createUI();
 
       $(window).resize(function(){
         //game.updateSizes();
@@ -250,13 +582,206 @@
         a = x + blocks[i];
         b = y + blocks[i+1];
 
-        if (b >= this._BLOCK_HEIGHT || this._filled.check(a, b)) {
+        if (b >= this._BLOCK_HEIGHT || this._filled.check(a, b) || !this._isCellAvailable(a, b)) {
           return true;
         } else if (!checkDownOnly && a < 0 || a >= this._BLOCK_WIDTH) {
           return true;
         }
       }
       return false;
+    },
+
+    _isCellAvailable: function(x, y) {
+      // Check if cell is within bounds and available in custom area
+      if (x < 0 || x >= this._BLOCK_WIDTH || y < 0 || y >= this._BLOCK_HEIGHT) {
+        return false;
+      }
+      
+      // If no custom area, all cells are available
+      if (!this._customArea || !this._customArea.grid) {
+        return true;
+      }
+      
+      // Check custom area grid
+      return this._customArea.grid[y * this._BLOCK_WIDTH + x] === 1;
+    },
+
+    _getAvailableCellsInRow: function(row) {
+      // Get number of available cells in a row
+      var count = 0;
+      for (var x = 0; x < this._BLOCK_WIDTH; x++) {
+        if (this._isCellAvailable(x, row)) {
+          count++;
+        }
+      }
+      return count;
+    },
+
+    _getFilledCellsInRow: function(row) {
+      // Get number of filled cells in a row
+      var count = 0;
+      for (var x = 0; x < this._BLOCK_WIDTH; x++) {
+        if (this._isCellAvailable(x, row) && this._filled.check(x, row)) {
+          count++;
+        }
+      }
+      return count;
+    },
+
+    _saveCustomArea: function(name, grid) {
+      // Save custom area to localStorage
+      var areas = this._getSavedAreas();
+      
+      // Check if already exists with same name
+      var existingIndex = areas.findIndex(function(area) {
+        return area.name === name;
+      });
+      
+      if (existingIndex !== -1) {
+        // Update existing area
+        areas[existingIndex] = { name: name, grid: grid };
+      } else {
+        // Add new area, check limit
+        if (areas.length >= 10) {
+          return false; // Limit reached
+        }
+        areas.push({ name: name, grid: grid });
+      }
+      
+      localStorage.setItem('blockrain_custom_areas', JSON.stringify(areas));
+      return true;
+    },
+
+    _getSavedAreas: function() {
+      // Get saved custom areas from localStorage
+      var areas = localStorage.getItem('blockrain_custom_areas');
+      return areas ? JSON.parse(areas) : [];
+    },
+
+    _loadCustomArea: function(name) {
+      // Load custom area by name
+      var areas = this._getSavedAreas();
+      var area = areas.find(function(a) {
+        return a.name === name;
+      });
+      
+      if (area) {
+        this._customArea = area;
+        this._board.render(true);
+        return true;
+      }
+      return false;
+    },
+
+    _deleteCustomArea: function(name) {
+      // Delete custom area by name
+      var areas = this._getSavedAreas();
+      var newAreas = areas.filter(function(area) {
+        return area.name !== name;
+      });
+      localStorage.setItem('blockrain_custom_areas', JSON.stringify(newAreas));
+    },
+
+    _exportCustomArea: function(name) {
+      // Export custom area as JSON file
+      var area = this._getSavedAreas().find(function(a) {
+        return a.name === name;
+      });
+      
+      if (area) {
+        var dataStr = JSON.stringify(area, null, 2);
+        var dataBlob = new Blob([dataStr], { type: 'application/json' });
+        var url = URL.createObjectURL(dataBlob);
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = 'blockrain_area_' + name + '.json';
+        link.click();
+        URL.revokeObjectURL(url);
+        return true;
+      }
+      return false;
+    },
+
+    _importCustomArea: function(file) {
+      // Import custom area from JSON file
+      var reader = new FileReader();
+      var game = this;
+      
+      reader.onload = function(e) {
+        try {
+          var area = JSON.parse(e.target.result);
+          if (area.name && area.grid) {
+            if (game._saveCustomArea(area.name, area.grid)) {
+              game._editorGrid = area.grid.slice();
+              game._drawEditorGrid();
+              game._$editor.find('.blockrain-editor-name').val(area.name);
+              game._showEditorStatus('区域导入成功', 'success');
+            } else {
+              game._showEditorStatus('区域导入失败：已达到最大数量限制（10个）', 'error');
+            }
+            return true;
+          }
+        } catch (error) {
+          console.error('Invalid area file:', error);
+          game._showEditorStatus('区域导入失败：无效的文件格式', 'error');
+        }
+        return false;
+      };
+      
+      reader.readAsText(file);
+    },
+
+    _validateCustomArea: function(grid) {
+      // Validate custom area has at least one path from top to available cells
+      var width = this._BLOCK_WIDTH;
+      var height = this._BLOCK_HEIGHT;
+      var visited = new Array(width * height).fill(false);
+      var queue = [];
+      
+      // Find all available cells in the top row
+      for (var x = 0; x < width; x++) {
+        if (grid[x] === 1) {
+          queue.push(x);
+          visited[x] = true;
+        }
+      }
+      
+      // BFS to find if there's a path to any cell
+      while (queue.length > 0) {
+        var current = queue.shift();
+        var x = current % width;
+        var y = Math.floor(current / width);
+        
+        // Check neighboring cells (down, left, right, up)
+        var neighbors = [
+          current + width, // down
+          current - 1,     // left
+          current + 1,     // right
+          current - width  // up
+        ];
+        
+        for (var i = 0; i < neighbors.length; i++) {
+          var neighbor = neighbors[i];
+          var nx = neighbor % width;
+          var ny = Math.floor(neighbor / width);
+          
+          // Check if neighbor is within bounds, available, and not visited
+          if (nx >= 0 && nx < width && ny >= 0 && ny < height &&
+              grid[neighbor] === 1 && !visited[neighbor]) {
+            visited[neighbor] = true;
+            queue.push(neighbor);
+          }
+        }
+      }
+      
+      // Check if there's at least one available cell that is reachable
+      for (var i = 0; i < grid.length; i++) {
+        if (grid[i] === 1 && visited[i]) {
+          return true;
+        }
+      }
+      
+      return false; // No path found
     },
 
 
@@ -314,6 +839,25 @@
       }
 
       this._ctx.globalAlpha = 1.0;
+      
+      // Draw custom area unavailable cells
+      if (this._customArea) {
+        this._ctx.globalAlpha = 0.3;
+        this._ctx.fillStyle = '#000000';
+        
+        for (var x = 0; x < this._BLOCK_WIDTH; x++) {
+          for (var y = 0; y < this._BLOCK_HEIGHT; y++) {
+            var index = y * this._BLOCK_WIDTH + x;
+            if (this._customArea.grid[index] === 0) {
+              var cx = x * this._block_size;
+              var cy = y * this._block_size;
+              this._ctx.fillRect(cx, cy, this._block_size, this._block_size);
+            }
+          }
+        }
+        
+        this._ctx.globalAlpha = 1.0;
+      }
     },
 
 
@@ -617,16 +1161,15 @@
         },
         checkForClears: function() {
           var startLines = game._board.lines;
-          var rows = [], i, len, count, mod;
+          var rows = [], i, len, count, mod, y;
 
-          for (i=0, len=this.data.length; i<len; i++) {
-            mod = this.asX(i);
-            if (mod == 0) count = 0;
-            if (this.data[i] && typeof this.data[i] !== 'undefined' && typeof this.data[i].blockType === 'string') {
-              count += 1;
-            }
-            if (mod == game._BLOCK_WIDTH - 1 && count == game._BLOCK_WIDTH) {
-              rows.push(this.asY(i));
+          for (y=0; y<game._BLOCK_HEIGHT; y++) {
+            var availableCells = game._getAvailableCellsInRow(y);
+            var filledCells = game._getFilledCellsInRow(y);
+            
+            // If all available cells in the row are filled, clear the row
+            if (availableCells > 0 && filledCells === availableCells) {
+              rows.push(y);
             }
           }
 
@@ -1258,6 +1801,9 @@
       game._$gameholder.append(game._$gameover);
 
       this._createControls();
+      
+      // Create custom area editor
+      this._createCustomAreaEditor();
     },
 
 
@@ -1271,6 +1817,107 @@
       game._$touchRotateLeft = $('<a class="blockrain-touch blockrain-touch-rotate-left" />').appendTo(game._$gameholder);
       game._$touchDrop = $('<a class="blockrain-touch blockrain-touch-drop" />').appendTo(game._$gameholder);
 
+    },
+
+    _createCustomAreaEditor: function() {
+      var game = this;
+      
+      // Create editor container
+      game._$editor = $(`
+        <div class="blockrain-editor-holder" style="position:absolute; display:none;">
+          <div class="blockrain-editor">
+            <div class="blockrain-editor-header">
+              <h3>自定义游戏区域</h3>
+              <button class="blockrain-editor-close">×</button>
+            </div>
+            <div class="blockrain-editor-content">
+              <div class="blockrain-editor-controls">
+                <div class="blockrain-editor-control-group">
+                  <label>区域名称:</label>
+                  <input type="text" class="blockrain-editor-name" placeholder="输入区域名称">
+                </div>
+                <div class="blockrain-editor-control-group">
+                  <label>画笔模式:</label>
+                  <div class="blockrain-editor-toolbar">
+                    <button class="blockrain-editor-tool blockrain-editor-tool-brush active" data-tool="brush">画笔</button>
+                    <button class="blockrain-editor-tool blockrain-editor-tool-erase" data-tool="erase">橡皮擦</button>
+                    <button class="blockrain-editor-tool blockrain-editor-tool-fill" data-tool="fill">填充</button>
+                    <button class="blockrain-editor-tool blockrain-editor-tool-clear" data-tool="clear">清空</button>
+                  </div>
+                </div>
+                <div class="blockrain-editor-control-group">
+                  <button class="blockrain-editor-btn blockrain-editor-btn-save">保存区域</button>
+                  <button class="blockrain-editor-btn blockrain-editor-btn-load">加载区域</button>
+                  <button class="blockrain-editor-btn blockrain-editor-btn-export">导出区域</button>
+                  <button class="blockrain-editor-btn blockrain-editor-btn-import">导入区域</button>
+                  <input type="file" class="blockrain-editor-import-file" accept=".json" style="display:none;">
+                </div>
+              </div>
+              <div class="blockrain-editor-grid-holder">
+                <canvas class="blockrain-editor-grid"></canvas>
+              </div>
+              <div class="blockrain-editor-status"></div>
+            </div>
+          </div>
+        </div>
+      `).appendTo(game._$gameholder);
+      
+      // Create load area dropdown
+      game._$loadDropdown = $(`
+        <div class="blockrain-load-dropdown" style="position:absolute; display:none;">
+          <div class="blockrain-load-dropdown-content"></div>
+        </div>
+      `).appendTo(game._$editor);
+      
+      // Event handlers
+      game._$editor.find('.blockrain-editor-close').click(function() {
+        game.hideCustomAreaEditor();
+      });
+      
+      game._$editor.find('.blockrain-editor-tool').click(function() {
+        game._$editor.find('.blockrain-editor-tool').removeClass('active');
+        $(this).addClass('active');
+      });
+      
+      game._$editor.find('.blockrain-editor-btn-save').click(function() {
+        game.saveCurrentCustomArea();
+      });
+      
+      game._$editor.find('.blockrain-editor-btn-load').click(function() {
+        game.showLoadAreaDropdown();
+      });
+      
+      game._$editor.find('.blockrain-editor-btn-export').click(function() {
+        game.exportCurrentCustomArea();
+      });
+      
+      game._$editor.find('.blockrain-editor-btn-import').click(function() {
+        game._$editor.find('.blockrain-editor-import-file').click();
+      });
+      
+      game._$editor.find('.blockrain-editor-import-file').change(function(e) {
+        var file = e.target.files[0];
+        if (file) {
+          game.importCustomArea(file);
+        }
+      });
+      
+      // Setup editor canvas
+      game._editorCanvas = game._$editor.find('.blockrain-editor-grid')[0];
+      game._editorCtx = game._editorCanvas.getContext('2d');
+      
+      // Initialize editor grid
+      game._editorGrid = new Array(game._BLOCK_WIDTH * game._BLOCK_HEIGHT).fill(1); // 1 = available, 0 = unavailable
+      
+      // Add editor toggle button to start menu
+      game._$start.find('.blockrain-start').append(`
+        <a class="blockrain-btn blockrain-editor-toggle">自定义区域</a>
+      `);
+      
+      game._$start.find('.blockrain-editor-toggle').click(function(event) {
+        event.preventDefault();
+        game.showCustomAreaEditor();
+      });
     },
 
 

@@ -161,3 +161,191 @@
   margin-bottom: 30px;
 }
 
+/* Custom Area Editor */
+.blockrain-editor-holder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.blockrain-editor {
+  background: #222222;
+  border: 2px solid #ffffff;
+  padding: 20px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90%;
+  overflow-y: auto;
+}
+
+.blockrain-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #444444;
+}
+
+.blockrain-editor-header h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.blockrain-editor-close {
+  background: none;
+  border: none;
+  color: #ffffff;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.blockrain-editor-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.blockrain-editor-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.blockrain-editor-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.blockrain-editor-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.blockrain-editor-control-group label {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.blockrain-editor-name {
+  padding: 10px;
+  border: 1px solid #444444;
+  background: #111111;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.blockrain-editor-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.blockrain-editor-tool {
+  padding: 8px 15px;
+  border: 1px solid #444444;
+  background: #111111;
+  color: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.blockrain-editor-tool:hover {
+  background: #333333;
+}
+
+.blockrain-editor-tool.active {
+  background: #0066cc;
+  border-color: #0066cc;
+}
+
+.blockrain-editor-btn {
+  padding: 10px 20px;
+  border: 1px solid #444444;
+  background: #111111;
+  color: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.blockrain-editor-btn:hover {
+  background: #333333;
+}
+
+.blockrain-editor-grid-holder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px;
+  background: #111111;
+  border: 1px solid #444444;
+}
+
+.blockrain-editor-grid {
+  border: 1px solid #666666;
+  cursor: crosshair;
+}
+
+.blockrain-editor-status {
+  padding: 10px;
+  font-size: 14px;
+  text-align: center;
+  border-radius: 4px;
+}
+
+.blockrain-editor-status.error {
+  background: rgba(255, 0, 0, 0.2);
+  color: #ff6666;
+}
+
+.blockrain-editor-status.success {
+  background: rgba(0, 255, 0, 0.2);
+  color: #66ff66;
+}
+
+.blockrain-load-dropdown {
+  background: #222222;
+  border: 1px solid #444444;
+  padding: 10px;
+  z-index: 101;
+  min-width: 150px;
+}
+
+.blockrain-load-dropdown-content {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.blockrain-load-dropdown-item {
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.blockrain-load-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.blockrain-editor-toggle {
+  margin-top: 15px;
+  font-size: 14px;
+  padding: 10px 20px;
+}
+
