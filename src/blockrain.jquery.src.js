@@ -15,6 +15,7 @@
       difficulty: 'normal', // Difficulty (normal|nice|evil).
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
+      seed: null, // Seed for random number generator (for multiplayer synchronization)
 
       // Copy
       playText: 'Let\'s play some Tetris',
@@ -1110,7 +1111,16 @@
     },
 
     // Utility Functions
-    _randInt: function(a, b) { return a + Math.floor(Math.random() * (1 + b - a)); },
+    _randInt: function(a, b) { 
+      if (this.options.seed !== null) {
+        // Use seeded random number generator
+        this.options.seed = (this.options.seed * 16807) % 2147483647;
+        return a + Math.floor(((this.options.seed - 1) / 2147483646) * (1 + b - a));
+      } else {
+        // Use default random number generator
+        return a + Math.floor(Math.random() * (1 + b - a));
+      }
+    },
     _randSign: function() { return this._randInt(0, 1) * 2 - 1; },
     _randChoice: function(choices) { return choices[this._randInt(0, choices.length-1)]; },
 
