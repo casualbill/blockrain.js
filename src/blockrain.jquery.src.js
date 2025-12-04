@@ -22,6 +22,16 @@
       gameOverText: 'Game Over',
       restartButtonText: 'Play Again',
       scoreText: 'Score',
+      recordButtonText: 'Start Recording',
+      stopRecordButtonText: 'Stop Recording',
+      exportButtonText: 'Export Video',
+      recordingText: 'Recording...',
+
+      // Recording options
+      recordingEnabled: true, // Enable recording functionality
+      defaultFormat: 'mp4', // Default video format: mp4, webm, mkv
+      defaultCodec: 'h264', // Default codec: h264, h265, vp8, vp9
+      frameRate: 60, // Recording frame rate
 
       // Basic Callbacks
       onStart: function(){},
@@ -31,7 +41,11 @@
       // When a block is placed
       onPlaced: function(){},
       // When a line is made. Returns the number of lines, score assigned and total score
-      onLine: function(lines, scoreIncrement, score){}
+      onLine: function(lines, scoreIncrement, score){},
+      // Recording callbacks
+      onRecordingStart: function(){},
+      onRecordingStop: function(){},
+      onVideoExport: function(filename){}
     },
 
 
@@ -51,6 +65,12 @@
     gameover: function() {
       this.showGameOverMessage();
       this._board.gameover = true;
+      
+      // Stop recording when game ends
+      if (this._isRecording) {
+        this.stopRecording();
+      }
+      
       this.options.onGameOver.call(this.element, this._filled.score);
     },
 
@@ -67,6 +87,12 @@
       this._$start.fadeOut(150);
       this._$gameover.fadeOut(150);
       this._$score.fadeIn(150);
+      
+      // Show record button when game starts
+      if (this.options.recordingEnabled) {
+        this._$recordButton.fadeIn(150);
+        this._$exportButton.hide();
+      }
     },
 
 
@@ -194,6 +220,15 @@
     _$gameover: null,
     _$score: null,
     _$scoreText: null,
+    _$recordButton: null,
+    _$exportButton: null,
+    _$recordingStatus: null,
+
+    // Recording variables
+    _isRecording: false,
+    _mediaRecorder: null,
+    _recordedChunks: [],
+    _recordingStartTime: null,
 
 
     // Canvas
@@ -1219,22 +1254,48 @@
 
       // Score
       game._$score = $(
-        '<div class="blockrain-score-holder" style="position:absolute;">'+
-          '<div class="blockrain-score">'+
-            '<div class="blockrain-score-msg">'+ this.options.scoreText +'</div>'+
-            '<div class="blockrain-score-num">0</div>'+
-          '</div>'+
+        '<div class="blockrain-score-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-score">'+ 
+            '<div class="blockrain-score-msg">'+ this.options.scoreText +'</div>'+ 
+            '<div class="blockrain-score-num">0</div>'+ 
+          '</div>'+ 
         '</div>').hide();
       game._$scoreText = game._$score.find('.blockrain-score-num');
       game._$gameholder.append(game._$score);
 
+      // Recording status
+      game._$recordingStatus = $(        '<div class="blockrain-recording-status" style="display:none;">'+           '<span class="blockrain-recording-indicator"></span>'+           this.options.recordingText +         '</div>');
+      game._$gameholder.append(game._$recordingStatus);
+
+      // Record button
+        if (this.options.recordingEnabled) {
+          game._$recordButton = $(            '<a class="blockrain-btn blockrain-record-btn" style="display:none;">'+              this.options.recordButtonText +            '</a>');
+        game._$recordButton.click(function(event){
+          event.preventDefault();
+          if (game._isRecording) {
+            game.stopRecording();
+          } else {
+            game.startRecording();
+          }
+        });
+        game._$gameholder.append(game._$recordButton);
+
+        // Export button
+        game._$exportButton = $(          '<a class="blockrain-btn blockrain-export-btn" style="display:none;">'+            this.options.exportButtonText +          '</a>');
+        game._$exportButton.click(function(event){
+          event.preventDefault();
+          game.exportVideo();
+        });
+        game._$gameholder.append(game._$exportButton);
+      }
+
       // Create the start menu
       game._$start = $(
-        '<div class="blockrain-start-holder" style="position:absolute;">'+
-          '<div class="blockrain-start">'+
-            '<div class="blockrain-start-msg">'+ this.options.playText +'</div>'+
-            '<a class="blockrain-btn blockrain-start-btn">'+ this.options.playButtonText +'</a>'+
-          '</div>'+
+        '<div class="blockrain-start-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-start">'+ 
+            '<div class="blockrain-start-msg">'+ this.options.playText +'</div>'+ 
+            '<a class="blockrain-btn blockrain-start-btn">'+ this.options.playButtonText +'</a>'+ 
+          '</div>'+ 
         '</div>').hide();
       game._$gameholder.append(game._$start);
 
@@ -1245,11 +1306,11 @@
 
       // Create the game over menu
       game._$gameover = $(
-        '<div class="blockrain-game-over-holder" style="position:absolute;">'+
-          '<div class="blockrain-game-over">'+
-            '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+
-            '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+
-          '</div>'+
+        '<div class="blockrain-game-over-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-game-over">'+ 
+            '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+ 
+            '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+ 
+          '</div>'+ 
         '</div>').hide();
       game._$gameover.find('.blockrain-game-over-btn').click(function(event){
         event.preventDefault();
@@ -1421,6 +1482,136 @@
     /**
      * Controls
      */
+    // Recording methods
+    startRecording: function() {
+      if (!this.options.recordingEnabled || this._isRecording) return;
+      
+      // Check browser support
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        alert('Your browser does not support screen recording. Please use Chrome, Firefox, or Edge.');
+        return;
+      }
+      
+      // Create media stream from canvas
+      var stream = this._canvas.captureStream(this.options.frameRate);
+      
+      // Configure media recorder
+      var options = {
+        mimeType: this._getMimeType(this.options.defaultFormat, this.options.defaultCodec),
+        videoBitsPerSecond: 2500000 // 2.5 Mbps
+      };
+      
+      try {
+        this._mediaRecorder = new MediaRecorder(stream, options);
+      } catch (e) {
+        console.error('MediaRecorder initialization failed:', e);
+        alert('Recording failed. Please try a different browser or format.');
+        return;
+      }
+      
+      // Setup event handlers
+      this._recordedChunks = [];
+      
+      this._mediaRecorder.ondataavailable = function(e) {
+        if (e.data.size > 0) {
+          this._recordedChunks.push(e.data);
+        }
+      }.bind(this);
+      
+      this._mediaRecorder.onstop = function() {
+        this._isRecording = false;
+        this._updateRecordButtonText();
+        this._$recordingStatus.hide();
+        this._$exportButton.show();
+        this.options.onRecordingStop.call(this.element);
+      }.bind(this);
+      
+      // Start recording
+      this._mediaRecorder.start();
+      this._isRecording = true;
+      this._recordingStartTime = Date.now();
+      
+      // Update UI
+      this._updateRecordButtonText();
+      this._$recordingStatus.show();
+      
+      this.options.onRecordingStart.call(this.element);
+    },
+    
+    stopRecording: function() {
+      if (!this._isRecording || !this._mediaRecorder) return;
+      
+      this._mediaRecorder.stop();
+    },
+    
+    exportVideo: function(format, codec) {
+      if (this._recordedChunks.length === 0) return;
+      
+      // Use default format and codec if not provided
+      format = format || this.options.defaultFormat;
+      codec = codec || this.options.defaultCodec;
+      
+      // Create blob from recorded chunks
+      var mimeType = this._getMimeType(format, codec);
+      var blob = new Blob(this._recordedChunks, { type: mimeType });
+      
+      // Create download link
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      
+      // Generate filename with timestamp and score
+      var timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+      var filename = 'blockrain-' + timestamp + '-score-' + this._filled.score + '.' + format;
+      a.download = filename;
+      
+      // Trigger download
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      // Revoke URL
+      URL.revokeObjectURL(url);
+      
+      this.options.onVideoExport.call(this.element, filename);
+    },
+    
+    _getMimeType: function(format, codec) {
+      var mimeTypes = {
+        'mp4': {
+          'h264': 'video/mp4;codecs=avc1.42E01E',
+          'h265': 'video/mp4;codecs=hev1.1.6.L120.90'
+        },
+        'webm': {
+          'vp8': 'video/webm;codecs=vp8',
+          'vp9': 'video/webm;codecs=vp9'
+        },
+        'mkv': {
+          'h264': 'video/x-matroska;codecs=avc1',
+          'h265': 'video/x-matroska;codecs=hevc'
+        }
+      };
+      
+      return mimeTypes[format] && mimeTypes[format][codec] ? 
+        mimeTypes[format][codec] : 
+        mimeTypes[this.options.defaultFormat][this.options.defaultCodec];
+    },
+    
+    _updateRecordButtonText: function() {
+      if (!this._$recordButton) return;
+      
+      this._$recordButton.text(
+        this._isRecording ? this.options.stopRecordButtonText : this.options.recordButtonText
+      );
+      
+      // Change button style when recording
+      if (this._isRecording) {
+        this._$recordButton.css('background-color', 'rgba(255, 0, 0, 0.3)');
+      } else {
+        this._$recordButton.css('background-color', '');
+      }
+    },
+    
     _setupControls: function(enable) {
 
       var game = this;
