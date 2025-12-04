@@ -52,6 +52,11 @@
       this.showGameOverMessage();
       this._board.gameover = true;
       this.options.onGameOver.call(this.element, this._filled.score);
+      // Clear rewind timer when game is over
+      if (this._rewindTimer) {
+        clearInterval(this._rewindTimer);
+        this._rewindTimer = null;
+      }
     },
 
     _doStart: function() {
@@ -64,9 +69,138 @@
       this._board.render(true);
       this._board.animate();
 
+      // Reset rewind data
+      this._rewindSnapshots = [];
+      this._rewindCount = 0;
+      this._startRewindTimer();
+
       this._$start.fadeOut(150);
       this._$gameover.fadeOut(150);
       this._$score.fadeIn(150);
+    },
+
+    // Start timer to save game state snapshots every second
+    _startRewindTimer: function() {
+      var game = this;
+      if (this._rewindTimer) {
+        clearInterval(this._rewindTimer);
+      }
+      this._rewindTimer = setInterval(function() {
+        game._saveGameState();
+      }, 1000);
+    },
+
+    // Save current game state to snapshots
+    _saveGameState: function() {
+      // Don't save state if game is not started, paused, game over, or no current shape
+      if (!this._board.started || this._board.paused || this._board.gameover || !this._board.cur) {
+        return;
+      }
+
+      // Create a deep copy of the game state
+      var state = {
+        timestamp: Date.now(),
+        filledData: JSON.parse(JSON.stringify(this._filled.data)),
+        score: this._filled.score,
+        lines: this._board.lines,
+        dropDelay: this._board.dropDelay,
+        currentShape: {
+          blockType: this._board.cur.blockType,
+          blockVariation: this._board.cur.blockVariation,
+          orientation: this._board.cur.orientation,
+          x: this._board.cur.x,
+          y: this._board.cur.y
+        },
+        nextShape: this._board.next ? {
+          blockType: this._board.next.blockType,
+          blockVariation: this._board.next.blockVariation
+        } : null
+      };
+
+      // Add to snapshots and limit to maxSnapshots
+      this._rewindSnapshots.push(state);
+      if (this._rewindSnapshots.length > this._maxSnapshots) {
+        this._rewindSnapshots.shift();
+      }
+    },
+
+    // Trigger time rewind
+    _rewindTime: function() {
+      // Check if rewind is allowed
+      if (!this._board.started || this._board.paused || this._board.gameover) {
+        this._showRewindMessage("Cannot rewind now");
+        return;
+      }
+
+      if (this._rewindCount >= this._maxRewinds) {
+        this._showRewindMessage("No rewind attempts left");
+        return;
+      }
+
+      if (this._rewindSnapshots.length === 0) {
+        this._showRewindMessage("No rewind history available");
+        return;
+      }
+
+      // Get the oldest snapshot (10 seconds ago) or the last one if less than 10 seconds
+      var targetSnapshot = this._rewindSnapshots[0];
+
+      // Restore game state
+      this._filled.data = JSON.parse(JSON.stringify(targetSnapshot.filledData));
+      this._filled.score = targetSnapshot.score;
+      this._$scoreText.text(this._filled.score);
+      this._board.lines = targetSnapshot.lines;
+      this._board.dropDelay = targetSnapshot.dropDelay;
+
+      // Restore current shape
+      var shapeData = targetSnapshot.currentShape;
+      if (shapeData && shapeData.blockType && this._shapeFactory[shapeData.blockType]) {
+        this._board.cur = this._shapeFactory[shapeData.blockType]();
+        this._board.cur.blockVariation = shapeData.blockVariation;
+        this._board.cur.orientation = shapeData.orientation;
+        this._board.cur.x = shapeData.x;
+        this._board.cur.y = shapeData.y;
+      } else {
+        // If shape data is invalid, create a new random shape
+        var shapeKeys = Object.keys(this._shapes);
+        var randomShapeKey = shapeKeys[Math.floor(Math.random() * shapeKeys.length)];
+        this._board.cur = this._shapeFactory[randomShapeKey]();
+        this._board.cur.x = Math.floor(this._board.width / 2) - Math.floor(this._board.cur.width / 2);
+        this._board.cur.y = 0;
+      }
+
+      // Restore next shape if exists
+      if (targetSnapshot.nextShape) {
+        this._board.next = this._shapeFactory[targetSnapshot.nextShape.blockType]();
+        this._board.next.blockVariation = targetSnapshot.nextShape.blockVariation;
+      }
+
+      // Increment rewind count
+      this._rewindCount++;
+
+      // Clear remaining snapshots after the target one
+      this._rewindSnapshots = [];
+
+      // Pause the game after rewind
+      this.pause();
+
+      // Show rewind message
+      var remaining = this._maxRewinds - this._rewindCount;
+      this._showRewindMessage("Rewound to 10 seconds ago! Remaining: " + remaining);
+
+      // Re-render the board
+      this._board.render(true);
+    },
+
+    // Show rewind message
+    _showRewindMessage: function(message) {
+      // Create message element if it doesn't exist
+      if (!this._$rewindMessage) {
+        this._$rewindMessage = $('<div class="blockrain-rewind-message" style="position:absolute; top:20px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); color:white; padding:10px 20px; border-radius:5px; font-size:16px; z-index:1000;">').hide();
+        this._$gameholder.append(this._$rewindMessage);
+      }
+
+      this._$rewindMessage.text(message).fadeIn(200).delay(2000).fadeOut(200);
     },
 
 
@@ -199,6 +333,13 @@
     // Canvas
     _canvas: null,
     _ctx: null,
+
+    // Time Rewind
+    _rewindSnapshots: [], // Array to store game state snapshots
+    _maxSnapshots: 10, // Max 10 seconds of history
+    _rewindCount: 0, // Number of rewinds used
+    _maxRewinds: 2, // Max 2 rewinds per game
+    _rewindTimer: null, // Timer for saving snapshots
 
 
     // Initialization
@@ -933,7 +1074,9 @@
             game._ctx.clearRect(0, 0, game._PIXEL_WIDTH, game._PIXEL_HEIGHT);
             game._drawBackground();
             game._filled.draw();
-            this.cur.draw();
+            if (this.cur) {
+              this.cur.draw();
+            }
           }
         },
 
@@ -1476,6 +1619,7 @@
           case 38: /*up*/     game._board.cur.rotate('right'); break;
           case 88: /*x*/      game._board.cur.rotate('right'); break;
           case 90: /*z*/      game._board.cur.rotate('left'); break;
+          case 32: /*space*/  game._rewindTime(); break;
           default: caught = false;
         }
         if (caught) evt.preventDefault();
