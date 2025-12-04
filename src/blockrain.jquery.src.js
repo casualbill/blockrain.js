@@ -250,7 +250,7 @@
         a = x + blocks[i];
         b = y + blocks[i+1];
 
-        if (b >= this._BLOCK_HEIGHT || this._filled.check(a, b)) {
+        if (b >= this._BLOCK_HEIGHT || this._filled.check(a, b) || this._isPetrified(a, b)) {
           return true;
         } else if (!checkDownOnly && a < 0 || a >= this._BLOCK_WIDTH) {
           return true;
@@ -406,6 +406,242 @@
         [0, -2,   0, -1,   1, -1,   1,  0],
         [0,  0,   1,  0,   1, -1,   2, -1]
       ]
+    },
+
+    // 道具方块类型
+    _powerupTypes: ['petrify', 'explode', 'laser'],
+
+    // 道具方块生成概率 (5% 总概率，三种道具各占 1/3)
+    _powerupChance: 0.05,
+
+    // 动画状态
+    _animations: [],
+
+    // 石化方块数据
+    _petrifiedBlocks: {},
+
+    // 检查是否为石化方块
+    _isPetrified: function(x, y) {
+      return this._petrifiedBlocks[x + ',' + y] === true;
+    },
+
+    // 设置石化方块
+    _setPetrified: function(x, y, value) {
+      if (value) {
+        this._petrifiedBlocks[x + ',' + y] = true;
+      } else {
+        delete this._petrifiedBlocks[x + ',' + y];
+      }
+    },
+
+    // 清除石化方块
+    _clearPetrified: function(x, y) {
+      delete this._petrifiedBlocks[x + ',' + y];
+    },
+
+    // 爆炸效果
+    _explode: function(x, y) {
+      var game = this;
+      
+      // 添加爆炸动画
+      this._animations.push({
+        type: 'explode',
+        x: x,
+        y: y,
+        startTime: Date.now(),
+        duration: 800 // 0.8秒
+      });
+
+      // 延迟清除方块，等待动画完成
+      setTimeout(function() {
+        // 清除以 (x,y) 为中心的 3x3 区域内的所有方块
+        for (var dx = -1; dx <= 1; dx++) {
+          for (var dy = -1; dy <= 1; dy++) {
+            var nx = x + dx;
+            var ny = y + dy;
+            
+            if (nx >= 0 && nx < game._BLOCK_WIDTH && ny >= 0 && ny < game._BLOCK_HEIGHT) {
+              // 清除普通方块
+              game._filled.data[game._filled.asIndex(nx, ny)] = undefined;
+              // 清除石化方块
+              game._clearPetrified(nx, ny);
+            }
+          }
+        }
+        
+        game._board.renderChanged = true;
+      }, 300); // 动画开始后 0.3 秒清除方块
+    },
+
+    // 激光效果
+    _laser: function(x, y) {
+      var game = this;
+      
+      // 添加激光动画
+      this._animations.push({
+        type: 'laser',
+        x: x,
+        y: y,
+        startTime: Date.now(),
+        duration: 600 // 0.6秒
+      });
+
+      // 延迟清除方块，等待动画完成
+      setTimeout(function() {
+        // 清除整行
+        for (var nx = 0; nx < game._BLOCK_WIDTH; nx++) {
+          if (y >= 0 && y < game._BLOCK_HEIGHT) {
+            game._filled.data[game._filled.asIndex(nx, y)] = undefined;
+            game._clearPetrified(nx, y);
+          }
+        }
+        
+        // 清除整列
+        for (var ny = 0; ny < game._BLOCK_HEIGHT; ny++) {
+          if (x >= 0 && x < game._BLOCK_WIDTH) {
+            game._filled.data[game._filled.asIndex(x, ny)] = undefined;
+            game._clearPetrified(x, ny);
+          }
+        }
+        
+        game._board.renderChanged = true;
+      }, 200); // 动画开始后 0.2 秒清除方块
+    },
+
+    // 石化效果
+    _petrify: function(x, y) {
+      var game = this;
+      
+      // 添加石化动画
+      this._animations.push({
+        type: 'petrify',
+        x: x,
+        y: y,
+        startTime: Date.now(),
+        duration: 500 // 0.5秒
+      });
+
+      // 延迟设置石化，等待动画完成
+      setTimeout(function() {
+        if (x >= 0 && x < game._BLOCK_WIDTH && y >= 0 && y < game._BLOCK_HEIGHT) {
+          game._setPetrified(x, y, true);
+        }
+        game._board.renderChanged = true;
+      }, 500); // 动画完成后设置石化
+    },
+
+    // 绘制动画
+    _drawAnimations: function() {
+      var now = Date.now();
+      var game = this;
+      
+      for (var i = this._animations.length - 1; i >= 0; i--) {
+        var anim = this._animations[i];
+        var elapsed = now - anim.startTime;
+        var progress = Math.min(elapsed / anim.duration, 1);
+        
+        if (progress >= 1) {
+          // 动画完成，移除
+          this._animations.splice(i, 1);
+          continue;
+        }
+        
+        var px = anim.x * this._block_size;
+        var py = anim.y * this._block_size;
+        var size = this._block_size;
+        
+        switch (anim.type) {
+          case 'explode':
+            this._drawExplosionAnimation(px, py, size, progress);
+            break;
+          case 'laser':
+            this._drawLaserAnimation(px, py, size, progress);
+            break;
+          case 'petrify':
+            this._drawPetrifyAnimation(px, py, size, progress);
+            break;
+        }
+      }
+    },
+
+    // 绘制爆炸动画
+    _drawExplosionAnimation: function(x, y, size, progress) {
+      var ctx = this._ctx;
+      var centerX = x + size / 2;
+      var centerY = y + size / 2;
+      
+      // 爆炸波纹
+      var radius = size * progress * 2;
+      ctx.strokeStyle = 'rgba(255, 100, 0, ' + (1 - progress) * 0.8 + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // 爆炸中心闪光
+      ctx.fillStyle = 'rgba(255, 200, 0, ' + (1 - progress) * 0.6 + ')';
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, size * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    },
+
+    // 绘制激光动画
+    _drawLaserAnimation: function(x, y, size, progress) {
+      var ctx = this._ctx;
+      var centerX = x + size / 2;
+      var centerY = y + size / 2;
+      
+      // 水平激光
+      ctx.strokeStyle = 'rgba(0, 150, 255, 0.8)';
+      ctx.lineWidth = size * 0.3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, centerY);
+      ctx.lineTo(this._PIXEL_WIDTH, centerY);
+      ctx.stroke();
+      
+      // 垂直激光
+      ctx.beginPath();
+      ctx.moveTo(centerX, 0);
+      ctx.lineTo(centerX, this._PIXEL_HEIGHT);
+      ctx.stroke();
+      
+      // 激光闪烁效果
+      if (progress < 0.3) {
+        ctx.fillStyle = 'rgba(100, 200, 255, ' + (progress * 3) * 0.5 + ')';
+        ctx.fillRect(x, y, size, size);
+      }
+    },
+
+    // 绘制石化动画
+    _drawPetrifyAnimation: function(x, y, size, progress) {
+      var ctx = this._ctx;
+      
+      // 石头纹理效果
+      var gradient = ctx.createRadialGradient(
+        x + size * 0.3, y + size * 0.3, 0,
+        x + size * 0.5, y + size * 0.5, size * 0.5
+      );
+      gradient.addColorStop(0, 'rgba(150, 150, 150, ' + progress + ')');
+      gradient.addColorStop(1, 'rgba(80, 80, 80, ' + progress + ')');
+      
+      ctx.fillStyle = gradient;
+      ctx.fillRect(x, y, size, size);
+      
+      // 石头裂纹效果
+      if (progress > 0.5) {
+        ctx.strokeStyle = 'rgba(50, 50, 50, ' + (progress - 0.5) * 2 + ')';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x + size * 0.2, y + size * 0.8);
+        ctx.lineTo(x + size * 0.8, y + size * 0.2);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(x + size * 0.4, y + size * 0.9);
+        ctx.lineTo(x + size * 0.6, y + size * 0.1);
+        ctx.stroke();
+      }
     },
 
     _SetupShapeFactory: function(){
@@ -567,6 +803,19 @@
           return new Shape(game, game._shapes.rightZag, false, 'rightZag');
         }
       };
+
+      // 道具方块工厂 - 使用square形状作为基础
+      this._powerupFactory = {
+        petrify: function() {
+          return new Shape(game, game._shapes.square, false, 'petrify');
+        },
+        explode: function() {
+          return new Shape(game, game._shapes.square, false, 'explode');
+        },
+        laser: function() {
+          return new Shape(game, game._shapes.square, false, 'laser');
+        }
+      };
     },
 
 
@@ -583,12 +832,15 @@
         },
         add: function(x, y, blockType, blockVariation, blockIndex, blockOrientation) {
           if (x >= 0 && x < game._BLOCK_WIDTH && y >= 0 && y < game._BLOCK_HEIGHT) {
-            this.data[this.asIndex(x, y)] = {
-              blockType: blockType, 
-              blockVariation: blockVariation, 
-              blockIndex: blockIndex, 
-              blockOrientation: blockOrientation
-            };
+            // 不能在石化方块上添加普通方块
+            if (!game._isPetrified(x, y)) {
+              this.data[this.asIndex(x, y)] = {
+                blockType: blockType, 
+                blockVariation: blockVariation, 
+                blockIndex: blockIndex, 
+                blockOrientation: blockOrientation
+              };
+            }
           }
         },
         getFreeSpaces: function() {
@@ -745,23 +997,33 @@
           var next = this.next,
             func, shape, result;
 
-          if (info.mode == 'nice' || info.mode == 'evil') {
-            func = game._niceShapes;
-          }
-          else {
-            func = game._randomShapes();
+          // 5% 的概率生成道具方块
+          var isPowerup = Math.random() < game._powerupChance;
+          var powerupType = null;
+          
+          if (isPowerup) {
+            // 随机选择一种道具
+            powerupType = game._randChoice(game._powerupTypes);
+            func = game._powerupFactory[powerupType];
+          } else {
+            if (info.mode == 'nice' || info.mode == 'evil') {
+              func = game._niceShapes;
+            }
+            else {
+              func = game._randomShapes();
+            }
           }
 
           if( game.options.no_preview ) {
             this.next = null;
             if (_set_next_only) return null;
-            shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
+            shape = func();
             if (!shape) throw new Error('No shape returned from shape function!', func);
             shape.init();
             result = shape;
           }
           else {
-            shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
+            shape = func();
             if (!shape) throw new Error('No shape returned from shape function!', func);
             shape.init();
             this.next = shape;
@@ -769,7 +1031,7 @@
             result = next || this.nextShape();
           }
 
-          if( game.options.autoplay ) { //fun little hack...
+          if( game.options.autoplay && !isPowerup ) { // 自动模式不处理道具方块
             game._niceShapes(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, 'normal', result);
             result.orientation = result.best_orientation;
             result.x = result.best_x;
@@ -790,6 +1052,23 @@
             }
           }
 
+          // 石化方块直接生成在底部
+          if (isPowerup && powerupType === 'petrify') {
+            // 随机选择一个列
+            var x = game._randInt(0, game._BLOCK_WIDTH - 1);
+            // 找到该列的底部空位
+            var y = game._BLOCK_HEIGHT - 1;
+            while (y >= 0 && (game._filled.check(x, y) || game._isPetrified(x, y))) {
+              y--;
+            }
+            if (y >= 0) {
+              // 直接执行石化效果
+              game._petrify(x, y);
+              // 重新生成一个普通方块
+              return this.nextShape();
+            }
+          }
+          
           return result;
         },
 
@@ -834,14 +1113,56 @@
               if (game._checkCollisions(x, y+1, blocks, true)) {
                 drop = false;
                 var blockIndex = 0;
+                var isPowerupShape = game._powerupTypes.indexOf(cur.blockType) !== -1;
+                
                 for (var i=0; i<cur.blocksLen; i+=2) {
-                  game._filled.add(x + blocks[i], y + blocks[i+1], cur.blockType, cur.blockVariation, blockIndex, cur.orientation);
-                  if (y + blocks[i] < 0) {
+                  var blockX = x + blocks[i];
+                  var blockY = y + blocks[i+1];
+                  
+                  if (isPowerupShape) {
+                    // 道具方块落地时执行特殊效果
+                    switch (cur.blockType) {
+                      case 'petrify':
+                        game._petrify(blockX, blockY);
+                        break;
+                      case 'explode':
+                        game._explode(blockX, blockY);
+                        break;
+                      case 'laser':
+                        game._laser(blockX, blockY);
+                        break;
+                    }
+                    // 道具方块不添加到普通方块数据中
+                  } else {
+                    // 普通方块添加到数据中
+                    game._filled.add(blockX, blockY, cur.blockType, cur.blockVariation, blockIndex, cur.orientation);
+                  }
+                  
+                  if (blockY < 0) {
                     gameOver = true;
+                  }
+                  
+                  // 检查底部是否被石化方块填满
+                  if (!gameOver && !isPowerupShape) {
+                    var isBottomFull = true;
+                    for (var x = 0; x < game._BLOCK_WIDTH; x++) {
+                      if (!game._isPetrified(x, game._BLOCK_HEIGHT - 1)) {
+                        isBottomFull = false;
+                        break;
+                      }
+                    }
+                    if (isBottomFull) {
+                      gameOver = true;
+                    }
                   }
                   blockIndex++;
                 }
-                game._filled.checkForClears();
+                
+                // 只有普通方块需要检查消除
+                if (!isPowerupShape) {
+                  game._filled.checkForClears();
+                }
+                
                 this.cur = this.nextShape();
                 this.renderChanged = true;
 
@@ -933,7 +1254,21 @@
             game._ctx.clearRect(0, 0, game._PIXEL_WIDTH, game._PIXEL_HEIGHT);
             game._drawBackground();
             game._filled.draw();
+            
+            // Draw petrified blocks
+            for (var key in game._petrifiedBlocks) {
+              if (game._petrifiedBlocks.hasOwnProperty(key)) {
+                var coords = key.split(',').map(Number);
+                var x = coords[0];
+                var y = coords[1];
+                game._board.drawBlock(x, y, 'petrify', null, 0, 0, false);
+              }
+            }
+            
             this.cur.draw();
+            
+            // Draw animations
+            game._drawAnimations();
           }
         },
 
@@ -1082,6 +1417,15 @@
             } else {
               return blockTheme;
             }
+          }
+
+          // 为道具方块添加特殊颜色
+          if (blockType === 'petrify') {
+            return '#888888'; // 灰色表示石化方块
+          } else if (blockType === 'explode') {
+            return '#ff0000'; // 红色表示爆炸方块
+          } else if (blockType === 'laser') {
+            return '#00ffff'; // 蓝色表示激光方块
           }
 
           if( typeof falling !== 'boolean' ){ falling = true; }
