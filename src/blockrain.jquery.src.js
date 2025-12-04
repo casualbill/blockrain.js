@@ -16,6 +16,11 @@
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
 
+      // Custom shapes options
+      customShapesEnabled: true, // Enable custom shapes in the game
+      maxCustomShapes: 20, // Maximum number of custom shapes allowed
+      customShapes: {}, // Custom shapes data
+
       // Copy
       playText: 'Let\'s play some Tetris',
       playButtonText: 'Play',
@@ -227,10 +232,311 @@
       this._info.init();
       this._board.init();
 
-      var renderLoop = function(){
+      var renderLoop = function() {
         requestAnimationFrame(renderLoop);
         game._board.render();
       };
+      renderLoop();
+
+      // Load custom shapes from local storage
+      game._loadCustomShapes();
+      // Add custom shapes to shape factory
+      game._updateShapeFactoryWithCustomShapes();
+    },
+
+    /**
+     * Load custom shapes from local storage
+     */
+    _loadCustomShapes: function() {
+      try {
+        var savedShapes = localStorage.getItem('blockrain_custom_shapes');
+        if (savedShapes) {
+          this._customShapes = JSON.parse(savedShapes);
+        }
+      } catch (e) {
+        console.error('Error loading custom shapes:', e);
+        this._customShapes = {};
+      }
+    },
+
+    /**
+     * Save custom shapes to local storage
+     */
+    _saveCustomShapes: function() {
+      try {
+        localStorage.setItem('blockrain_custom_shapes', JSON.stringify(this._customShapes));
+      } catch (e) {
+        console.error('Error saving custom shapes:', e);
+        return false;
+      }
+      return true;
+    },
+
+    /**
+     * Add custom shapes to the shape factory
+     */
+    _updateShapeFactoryWithCustomShapes: function() {
+      var game = this;
+      
+      // Add each custom shape to the factory
+      $.each(this._customShapes, function(name, shapeData) {
+        if (shapeData.enabled) {
+          game._shapeFactory['custom_' + name] = function() {
+            return new Shape(game, shapeData.orientations, shapeData.symmetrical || false, 'custom_' + name);
+          };
+        }
+      });
+    },
+
+    /**
+     * Validate a custom shape
+     * @param {Array} blocks - Array of [x, y] coordinates for each block
+     * @returns {Object} Validation result with success and message
+     */
+    _validateCustomShape: function(blocks) {
+      // Check number of blocks (1-6)
+      if (blocks.length < 1 || blocks.length > 6) {
+        return { success: false, message: '形状必须由1-6个方块组成' };
+      }
+
+      // Check all blocks are within 5x5 grid
+      for (var i = 0; i < blocks.length; i++) {
+        var x = blocks[i][0], y = blocks[i][1];
+        if (x < -2 || x > 2 || y < -2 || y > 2) {
+          return { success: false, message: '所有方块必须在5×5的网格范围内' };
+        }
+      }
+
+      // Check for overlapping blocks
+      var positions = {};
+      for (var i = 0; i < blocks.length; i++) {
+        var key = blocks[i][0] + ',' + blocks[i][1];
+        if (positions[key]) {
+          return { success: false, message: '方块不能重叠' };
+        }
+        positions[key] = true;
+      }
+
+      // Check if all blocks are connected
+      if (!this._areBlocksConnected(blocks)) {
+        return { success: false, message: '所有方块必须相互连接' };
+      }
+
+      return { success: true, message: '形状验证通过' };
+    },
+
+    /**
+     * Check if all blocks in a shape are connected
+     * @param {Array} blocks - Array of [x, y] coordinates
+     * @returns {boolean} True if all blocks are connected
+     */
+    _areBlocksConnected: function(blocks) {
+      if (blocks.length <= 1) return true;
+
+      // Use BFS to check connectivity
+      var visited = new Set();
+      var queue = [blocks[0]];
+      visited.add(blocks[0][0] + ',' + blocks[0][1]);
+
+      var directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+
+      while (queue.length > 0) {
+        var current = queue.shift();
+        
+        for (var dir of directions) {
+          var neighborX = current[0] + dir[0];
+          var neighborY = current[1] + dir[1];
+          var neighborKey = neighborX + ',' + neighborY;
+          
+          if (!visited.has(neighborKey)) {
+            // Check if this neighbor is in the blocks list
+            for (var block of blocks) {
+              if (block[0] === neighborX && block[1] === neighborY) {
+                visited.add(neighborKey);
+                queue.push(block);
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      return visited.size === blocks.length;
+    },
+
+    /**
+     * Generate all 4 rotations for a shape
+     * @param {Array} blocks - Array of [x, y] coordinates for the base orientation
+     * @returns {Array} Array of 4 orientations
+     */
+    _generateRotations: function(blocks) {
+      var rotations = [this._normalizeShape(blocks)];
+      
+      // Generate 3 more rotations (90, 180, 270 degrees left)
+      for (var i = 1; i < 4; i++) {
+        var rotated = [];
+        for (var block of rotations[i-1]) {
+          // Rotate left: (x, y) -> (-y, x)
+          rotated.push([-block[1], block[0]]);
+        }
+        rotations.push(this._normalizeShape(rotated));
+      }
+      
+      return rotations;
+    },
+
+    /**
+     * Normalize a shape by moving it to the top-left corner
+     * @param {Array} blocks - Array of [x, y] coordinates
+     * @returns {Array} Normalized blocks
+     */
+    _normalizeShape: function(blocks) {
+      // Find min x and y
+      var minX = Math.min(...blocks.map(b => b[0]));
+      var minY = Math.min(...blocks.map(b => b[1]));
+      
+      // Shift all blocks to top-left
+      return blocks.map(b => [b[0] - minX, b[1] - minY]);
+    },
+
+    /**
+     * Add a new custom shape
+     * @param {string} name - Unique name for the shape
+     * @param {Array} blocks - Array of [x, y] coordinates for each block
+     * @returns {Object} Result with success and message
+     */
+    addCustomShape: function(name, blocks) {
+      // Check if name is already used
+      if (this._customShapes[name]) {
+        return { success: false, message: '形状名称已存在' };
+      }
+      
+      // Check if max number of custom shapes reached
+      if (Object.keys(this._customShapes).length >= this._maxCustomShapes) {
+        return { success: false, message: '已达到最大自定义形状数量(' + this._maxCustomShapes + ')' };
+      }
+      
+      // Validate the shape
+      var validation = this._validateCustomShape(blocks);
+      if (!validation.success) {
+        return validation;
+      }
+      
+      // Generate all rotations
+      var orientations = this._generateRotations(blocks);
+      
+      // Add the shape
+      this._customShapes[name] = {
+        name: name,
+        blocks: blocks,
+        orientations: orientations.map(orient => {
+          // Convert to flat array format used by the game
+          var flat = [];
+          for (var block of orient) {
+            flat.push(block[0], block[1]);
+          }
+          return flat;
+        }),
+        symmetrical: this._isSymmetrical(orientations),
+        enabled: true,
+        probability: 1 // Default probability
+      };
+      
+      // Save to local storage
+      if (!this._saveCustomShapes()) {
+        return { success: false, message: '保存形状失败' };
+      }
+      
+      // Update shape factory
+      this._updateShapeFactoryWithCustomShapes();
+      
+      return { success: true, message: '形状添加成功' };
+    },
+
+    /**
+     * Check if a shape is symmetrical (rotations are identical)
+     * @param {Array} rotations - Array of 4 orientations
+     * @returns {boolean} True if symmetrical
+     */
+    _isSymmetrical: function(rotations) {
+      // Check if all rotations are the same as the first one
+      var first = JSON.stringify(rotations[0]);
+      for (var i = 1; i < rotations.length; i++) {
+        if (JSON.stringify(rotations[i]) !== first) {
+          return false;
+        }
+      }
+      return true;
+    },
+
+    /**
+     * Remove a custom shape
+     * @param {string} name - Name of the shape to remove
+     * @returns {Object} Result with success and message
+     */
+    removeCustomShape: function(name) {
+      if (!this._customShapes[name]) {
+        return { success: false, message: '形状不存在' };
+      }
+      
+      delete this._customShapes[name];
+      
+      // Save to local storage
+      if (!this._saveCustomShapes()) {
+        return { success: false, message: '删除形状失败' };
+      }
+      
+      // Update shape factory
+      this._updateShapeFactoryWithCustomShapes();
+      
+      return { success: true, message: '形状删除成功' };
+    },
+
+    /**
+     * Update a custom shape's settings
+     * @param {string} name - Name of the shape to update
+     * @param {Object} settings - New settings (enabled, probability)
+     * @returns {Object} Result with success and message
+     */
+    updateCustomShape: function(name, settings) {
+      if (!this._customShapes[name]) {
+        return { success: false, message: '形状不存在' };
+      }
+      
+      // Update settings
+      if (typeof settings.enabled === 'boolean') {
+        this._customShapes[name].enabled = settings.enabled;
+      }
+      if (typeof settings.probability === 'number' && settings.probability >= 0) {
+        this._customShapes[name].probability = settings.probability;
+      }
+      
+      // Save to local storage
+      if (!this._saveCustomShapes()) {
+        return { success: false, message: '更新形状失败' };
+      }
+      
+      // Update shape factory
+      this._updateShapeFactoryWithCustomShapes();
+      
+      return { success: true, message: '形状更新成功' };
+    },
+
+    /**
+     * Get all custom shapes
+     * @returns {Object} Custom shapes object
+     */
+    getCustomShapes: function() {
+      return $.extend(true, {}, this._customShapes);
+    },
+
+    /**
+     * Get the maximum number of custom shapes allowed
+     * @returns {number} Maximum number of custom shapes
+     */
+    getMaxCustomShapes: function() {
+      return this._maxCustomShapes;
+    }
       renderLoop();
 
       if( this.options.autoplay ) {
@@ -321,8 +627,9 @@
      * Shapes
      */
     _shapeFactory: null,
-
-    _shapes: {
+    _shapes: {},
+    _customShapes: {},
+    _maxCustomShapes: 20,
       /**
        * The shapes have a reference point (the dot) and always rotate left.
        * Keep in mind that the blocks should keep in the same relative position when rotating,
@@ -544,7 +851,54 @@
         return this.init();
       };
 
-      this._shapeFactory = {
+      // Define standard shapes
+      game._shapes = {
+        line: [
+            [ 0, -1,   0, -2,   0, -3,   0, -4],
+            [ 2, -2,   1, -2,   0, -2,  -1, -2],
+            [ 0, -4,   0, -3,   0, -2,   0, -1],
+            [-1, -2,   0, -2,   1, -2,   2, -2]
+        ],
+        square: [
+          [0,  0,   1,  0,   0, -1,   1, -1],
+          [1,  0,   1, -1,   0,  0,   0, -1],
+          [1, -1,   0, -1,   1,  0,   0,  0],
+          [0, -1,   0,  0,   1, -1,   1,  0]
+        ],
+        arrow: [
+          [0, -1,   1, -1,   2, -1,   1, -2],
+          [1,  0,   1, -1,   1, -2,   0, -1],
+          [2, -1,   1, -1,   0, -1,   1,  0],
+          [1, -2,   1, -1,   1,  0,   2, -1]
+        ],
+        rightHook: [
+          [2,  0,   1,  0,   1, -1,   1, -2],
+          [2, -2,   2, -1,   1, -1,   0, -1],
+          [0, -2,   1, -2,   1, -1,   1,  0],
+          [0,  0,   0, -1,   1, -1,   2, -1]
+        ],
+        leftHook: [
+          [0,  0,   1,  0,   1, -1,   1, -2],
+          [2,  0,   2, -1,   1, -1,   0, -1],
+          [2, -2,   1, -2,   1, -1,   1,  0],
+          [0, -2,   0, -1,   1, -1,   2, -1]
+        ],
+        leftZag: [
+          [0,  0,   0, -1,   1, -1,   1, -2],
+          [2, -1,   1, -1,   1, -2,   0, -2],
+          [1, -2,   1, -1,   0, -1,   0,  0],
+          [0, -2,   1, -2,   1, -1,   2, -1]
+        ],
+        rightZag: [
+          [1,  0,   1, -1,   0, -1,   0, -2],
+          [2, -1,   1, -1,   1,  0,   0,  0],
+          [0, -2,   0, -1,   1, -1,   1,  0],
+          [0,  0,   1,  0,   1, -1,   2, -1]
+        ]
+      };
+
+      // Initialize shape factory with standard shapes
+      game._shapeFactory = {
         line: function() {
           return new Shape(game, game._shapes.line, false, 'line');
         },
@@ -567,6 +921,11 @@
           return new Shape(game, game._shapes.rightZag, false, 'rightZag');
         }
       };
+
+      // Load custom shapes from local storage
+      game._loadCustomShapes();
+      // Add custom shapes to shape factory
+      game._updateShapeFactoryWithCustomShapes();
     },
 
 
