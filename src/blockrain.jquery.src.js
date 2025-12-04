@@ -405,6 +405,87 @@
         [2, -1,   1, -1,   1,  0,   0,  0],
         [0, -2,   0, -1,   1, -1,   1,  0],
         [0,  0,   1,  0,   1, -1,   2, -1]
+      ],
+      // 单个方块
+      single: [
+        [0,  0]
+      ],
+      // 两个方块
+      double: [
+        [0,  0,   1,  0],
+        [0,  0,   0, -1],
+        [0,  0,   1,  0],
+        [0,  0,   0, -1]
+      ],
+      // 三个方块 - 直线
+      tripleLine: [
+        [0,  0,   1,  0,   2,  0],
+        [1,  0,   1, -1,   1, -2],
+        [0,  0,   1,  0,   2,  0],
+        [1,  0,   1, -1,   1, -2]
+      ],
+      // 三个方块 - L形（左）
+      tripleLLeft: [
+        [0,  0,   1,  0,   0, -1],
+        [1,  0,   1, -1,   2, -1],
+        [1,  0,   0,  0,   1, -1],
+        [0,  0,   1,  0,   0, -1]
+      ],
+      // 三个方块 - L形（右）
+      tripleLRight: [
+        [0,  0,   1,  0,   1, -1],
+        [1,  0,   1, -1,   0, -1],
+        [0,  0,   1,  0,   0, -1],
+        [1,  0,   0,  0,   1, -1]
+      ],
+      // 凹形方块
+      concave: [
+        [0,  0,   1,  0,   2,  0,   1, -1,   1,  1],
+        [1,  0,   1, -1,   1, -2,   0, -1,   2, -1],
+        [0, -1,   1, -1,   2, -1,   1, -2,   1,  0],
+        [1, -1,   1,  0,   1,  1,   0,  0,   2,  0]
+      ],
+      // Z形方块（左）
+      zLeft: [
+        [0,  0,   1,  0,   1, -1,   2, -1,   1,  1],
+        [1,  0,   1, -1,   0, -1,   1, -2,   2,  0],
+        [0, -1,   1, -1,   1,  0,   2,  0,   1, -2],
+        [1, -1,   1,  0,   2,  0,   1,  1,   0, -1]
+      ],
+      // Z形方块（右）
+      zRight: [
+        [1,  0,   0,  0,   0, -1,   -1, -1,   0,  1],
+        [1,  0,   1, -1,   2, -1,   1, -2,   0,  0],
+        [1, -1,   0, -1,   0,  0,   -1,  0,   0, -2],
+        [1, -1,   1,  0,   0,  0,   1,  1,   2, -1]
+      ],
+      // T形方块
+      tShape: [
+        [1,  0,   0,  0,   2,  0,   1, -1,   1,  1],
+        [1,  0,   1, -1,   1, -2,   0, -1,   2, -1],
+        [1, -1,   0, -1,   2, -1,   1, -2,   1,  0],
+        [1, -1,   1,  0,   1,  1,   0,  0,   2,  0]
+      ],
+      // L形方块（左）
+      lLeft: [
+        [0,  0,   1,  0,   2,  0,   0, -1,   0, -2],
+        [2,  0,   2, -1,   2, -2,   1, -2,   0, -2],
+        [2, -2,   1, -2,   0, -2,   2, -1,   2,  0],
+        [0, -2,   0, -1,   0,  0,   1,  0,   2,  0]
+      ],
+      // L形方块（右）
+      lRight: [
+        [0,  0,   1,  0,   2,  0,   2, -1,   2, -2],
+        [0,  0,   0, -1,   0, -2,   1,  0,   2,  0],
+        [0, -2,   1, -2,   2, -2,   0, -1,   0,  0],
+        [2,  0,   2, -1,   2, -2,   1, -2,   0, -2]
+      ],
+      // 十字形方块
+      cross: [
+        [1,  0,   0,  0,   2,  0,   1, -1,   1,  1],
+        [1,  0,   1, -1,   1, -2,   0, -1,   2, -1],
+        [1, -1,   0, -1,   2, -1,   1, -2,   1,  0],
+        [1, -1,   1,  0,   1,  1,   0,  0,   2,  0]
       ]
     },
 
@@ -565,6 +646,42 @@
         },
         rightZag: function() {
           return new Shape(game, game._shapes.rightZag, false, 'rightZag');
+        },
+        single: function() {
+          return new Shape(game, game._shapes.single, false, 'single');
+        },
+        double: function() {
+          return new Shape(game, game._shapes.double, false, 'double');
+        },
+        tripleLine: function() {
+          return new Shape(game, game._shapes.tripleLine, false, 'tripleLine');
+        },
+        tripleLLeft: function() {
+          return new Shape(game, game._shapes.tripleLLeft, false, 'tripleLLeft');
+        },
+        tripleLRight: function() {
+          return new Shape(game, game._shapes.tripleLRight, false, 'tripleLRight');
+        },
+        concave: function() {
+          return new Shape(game, game._shapes.concave, false, 'concave');
+        },
+        zLeft: function() {
+          return new Shape(game, game._shapes.zLeft, false, 'zLeft');
+        },
+        zRight: function() {
+          return new Shape(game, game._shapes.zRight, false, 'zRight');
+        },
+        tShape: function() {
+          return new Shape(game, game._shapes.tShape, false, 'tShape');
+        },
+        lLeft: function() {
+          return new Shape(game, game._shapes.lLeft, false, 'lLeft');
+        },
+        lRight: function() {
+          return new Shape(game, game._shapes.lRight, false, 'lRight');
+        },
+        cross: function() {
+          return new Shape(game, game._shapes.cross, false, 'cross');
         }
       };
     },
@@ -1412,7 +1529,18 @@
     _randomShapes: function() {
       // Todo: The shapefuncs should be cached.
       var shapeFuncs = [];
-      $.each(this._shapeFactory, function(k,v) { shapeFuncs.push(v); });
+      var specialShapes = ['single', 'double', 'tripleLine', 'tripleLLeft', 'tripleLRight', 'concave', 'zLeft', 'zRight', 'tShape', 'lLeft', 'lRight', 'cross'];
+      
+      $.each(this._shapeFactory, function(k,v) { 
+        if (specialShapes.indexOf(k) === -1) {
+          // 普通方块添加两次，提高出现概率
+          shapeFuncs.push(v);
+          shapeFuncs.push(v);
+        } else {
+          // 特殊方块添加一次，出现概率为普通方块的1/2
+          shapeFuncs.push(v);
+        }
+      });
 
       return this._randChoice(shapeFuncs);
     },
