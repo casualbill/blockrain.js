@@ -138,6 +138,26 @@
   font-weight: bold;
 }
 
+/* Spotlight Toggle */
+.blockrain-spotlight-toggle {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+.blockrain-spotlight-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.blockrain-spotlight-toggle.active {
+  background: rgba(255, 255, 0, 0.3);
+  border-color: #ffff00;
+  color: #ffff00;
+}
+
 /* Menu */
 .blockrain-start-holder, .blockrain-game-over-holder {
   position: absolute;

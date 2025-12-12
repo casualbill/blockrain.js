@@ -15,6 +15,7 @@
       difficulty: 'normal', // Difficulty (normal|nice|evil).
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
+      spotlightMode: false, // Enable spotlight mode (dim everything except current falling block)
 
       // Copy
       playText: 'Let\'s play some Tetris',
@@ -22,6 +23,7 @@
       gameOverText: 'Game Over',
       restartButtonText: 'Play Again',
       scoreText: 'Score',
+      spotlightToggleText: 'Spotlight Mode',
 
       // Basic Callbacks
       onStart: function(){},
@@ -67,6 +69,7 @@
       this._$start.fadeOut(150);
       this._$gameover.fadeOut(150);
       this._$score.fadeIn(150);
+      this._$spotlightToggle.fadeIn(150);
     },
 
 
@@ -106,6 +109,26 @@
         this._$scoreText.text(this._filled_score);
       }
       return this._filled.score;
+    },
+
+    /**
+     * Toggle spotlight mode
+     */
+    toggleSpotlight: function(enable) {
+      if( typeof enable !== 'boolean' ){ 
+        enable = !this.options.spotlightMode;
+      }
+      this.options.spotlightMode = enable;
+      
+      // Update UI state
+      if (this._$spotlightToggle) {
+        this._$spotlightToggle.toggleClass('active', enable);
+      }
+      
+      // Trigger render to apply changes
+      if (this._board) {
+        this._board.renderChanged = true;
+      }
     },
 
     freesquares: function() {
@@ -934,7 +957,78 @@
             game._drawBackground();
             game._filled.draw();
             this.cur.draw();
+            
+            // Apply spotlight effect if enabled
+            if (game.options.spotlightMode && this.cur) {
+              this.applySpotlightEffect();
+            }
           }
+        },
+        
+        /**
+         * Apply spotlight effect to highlight current falling block and dim everything else
+         */
+        applySpotlightEffect: function() {
+          var cur = this.cur;
+          var blockSize = game._block_size;
+          
+          // Calculate the center of the current falling block
+          var blocks = cur.getBlocks();
+          var totalX = 0, totalY = 0;
+          
+          for (var i = 0; i < blocks.length; i += 2) {
+            totalX += (cur.x + blocks[i]);
+            totalY += (cur.y + blocks[i + 1]);
+          }
+          
+          var centerX = Math.round(totalX / (blocks.length / 2));
+          var centerY = Math.round(totalY / (blocks.length / 2));
+          
+          // Calculate the 5x5 spotlight area around the center
+          var spotlightSize = 5;
+          var halfSize = Math.floor(spotlightSize / 2);
+          
+          var spotlightLeft = centerX - halfSize;
+          var spotlightTop = centerY - halfSize;
+          var spotlightRight = centerX + halfSize;
+          var spotlightBottom = centerY + halfSize;
+          
+          // Convert to pixel coordinates
+          var pixelLeft = spotlightLeft * blockSize;
+          var pixelTop = spotlightTop * blockSize;
+          var pixelRight = (spotlightRight + 1) * blockSize;
+          var pixelBottom = (spotlightBottom + 1) * blockSize;
+          
+          // Save the current canvas state
+          game._ctx.save();
+          
+          // Create a clipping region for the spotlight area
+          game._ctx.beginPath();
+          game._ctx.rect(
+            Math.max(0, pixelLeft),
+            Math.max(0, pixelTop),
+            Math.min(game._PIXEL_WIDTH - pixelLeft, pixelRight - pixelLeft),
+            Math.min(game._PIXEL_HEIGHT - pixelTop, pixelBottom - pixelTop)
+          );
+          game._ctx.clip();
+          
+          // Redraw the entire game content within the spotlight area
+          // This ensures the falling block and background are visible in the spotlight
+          this.renderBackground();
+          this.renderFilled();
+          this.renderCur();
+          
+          // Restore the canvas state
+          game._ctx.restore();
+          
+          // Create a semi-transparent black mask covering the entire game area
+          // but only outside the spotlight region
+          game._ctx.globalCompositeOperation = 'destination-out';
+          game._ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+          game._ctx.fillRect(0, 0, game._PIXEL_WIDTH, game._PIXEL_HEIGHT);
+          
+          // Reset composite operation
+          game._ctx.globalCompositeOperation = 'source-over';
         },
 
 
@@ -1219,14 +1313,27 @@
 
       // Score
       game._$score = $(
-        '<div class="blockrain-score-holder" style="position:absolute;">'+
-          '<div class="blockrain-score">'+
-            '<div class="blockrain-score-msg">'+ this.options.scoreText +'</div>'+
-            '<div class="blockrain-score-num">0</div>'+
-          '</div>'+
+        '<div class="blockrain-score-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-score">'+ 
+            '<div class="blockrain-score-msg">'+ this.options.scoreText +'</div>'+ 
+            '<div class="blockrain-score-num">0</div>'+ 
+          '</div>'+ 
         '</div>').hide();
       game._$scoreText = game._$score.find('.blockrain-score-num');
       game._$gameholder.append(game._$score);
+      
+      // Spotlight toggle
+      game._$spotlightToggle = $(
+        '<div class="blockrain-spotlight-toggle" style="position:absolute; top:20px; left:20px; cursor:pointer; padding:5px 10px; border:2px solid #ffffff; background:rgba(0,0,0,0.5); border-radius:4px; font-size:14px;">'+ 
+          this.options.spotlightToggleText + 
+        '</div>').hide();
+      
+      game._$spotlightToggle.click(function(event) {
+        event.preventDefault();
+        game.toggleSpotlight();
+      });
+      
+      game._$gameholder.append(game._$spotlightToggle);
 
       // Create the start menu
       game._$start = $(
