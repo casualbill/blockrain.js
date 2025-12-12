@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockrain Color Elimination Test</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        
+        h1 {
+            margin-bottom: 30px;
+            color: #4CAF50;
+        }
+        
+        .game-container {
+            width: 400px;
+            height: 600px;
+            margin: 0 auto 30px;
+            background-color: #000000;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        
+        .controls label {
+            margin-right: 15px;
+            font-size: 16px;
+        }
+        
+        .controls input[type="checkbox"] {
+            margin-right: 5px;
+        }
+        
+        .controls input[type="number"] {
+            width: 50px;
+            padding: 5px;
+            border-radius: 5px;
+            border: 1px solid #444;
+            background-color: #333;
+            color: #fff;
+        }
+        
+        .controls button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 5px;
+        }
+        
+        .controls button:hover {
+            background-color: #45a049;
+        }
+        
+        .status {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+        
+        .score-display {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Blockrain - Color Elimination Mode</h1>
+        
+        <div class="controls">
+            <label>
+                <input type="checkbox" id="colorEliminationToggle">
+                Enable Color Elimination Mode
+            </label>
+            <label>
+                Colors: <input type="number" id="colorCount" min="4" max="8" value="6">
+            </label>
+            <button id="startBtn">Start Game</button>
+            <button id="restartBtn">Restart</button>
+        </div>
+        
+        <div class="game-container" id="game"></div>
+        
+        <div class="status">
+            <div>Status: <span id="status">Ready</span></div>
+            <div class="score-display">Score: <span id="score">0</span></div>
+        </div>
+    </div>
+
+    <script src="assets/js/jquery-1.11.1.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <script src="src/blockrain.jquery.themes.js"></script>
+    <script src="src/blockrain.jquery.src.js"></script>
+    
+    <script>
+        $(document).ready(function() {
+            var game = $('#game').blockrain({
+                theme: 'modern',
+                colorElimination: false,
+                colorCount: 6,
+                onStart: function() {
+                    $('#status').text('Playing');
+                },
+                onGameOver: function(score) {
+                    $('#status').text('Game Over');
+                    $('#score').text(score);
+                },
+                onLine: function(lines, scoreIncrement, score) {
+                    $('#score').text(score);
+                },
+                onColorElimination: function(color, count, scoreIncrement, score) {
+                    $('#score').text(score);
+                    console.log('Color eliminated:', color, 'Count:', count, 'Score:', score);
+                }
+            });
+            
+            $('#startBtn').click(function() {
+                var colorElimination = $('#colorEliminationToggle').is(':checked');
+                var colorCount = parseInt($('#colorCount').val());
+                
+                // Update game options
+                game.blockrain('option', 'colorElimination', colorElimination);
+                game.blockrain('option', 'colorCount', colorCount);
+                
+                // Start the game
+                game.blockrain('start');
+            });
+            
+            $('#restartBtn').click(function() {
+                game.blockrain('restart');
+            });
+        });
+    </script>
+</body>
+</html>

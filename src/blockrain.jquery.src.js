@@ -15,6 +15,8 @@
       difficulty: 'normal', // Difficulty (normal|nice|evil).
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
+      colorElimination: false, // Enable color elimination mode
+      colorCount: 6, // Number of colors to use (4-8)
 
       // Copy
       playText: 'Let\'s play some Tetris',
@@ -31,7 +33,9 @@
       // When a block is placed
       onPlaced: function(){},
       // When a line is made. Returns the number of lines, score assigned and total score
-      onLine: function(lines, scoreIncrement, score){}
+      onLine: function(lines, scoreIncrement, score){},
+      // When colors are eliminated. Returns the color and number of blocks eliminated
+      onColorElimination: function(color, count, scoreIncrement, score){}
     },
 
 
@@ -57,6 +61,12 @@
     _doStart: function() {
       this._filled.clearAll();
       this._filled._resetScore();
+      
+      // Select colors if color elimination mode is enabled
+      if (this.options.colorElimination) {
+        this._selectGameColors();
+      }
+      
       this._board.cur = this._board.nextShape();
       this._board.started = true;
       this._board.gameover = false;
@@ -67,6 +77,50 @@
       this._$start.fadeOut(150);
       this._$gameover.fadeOut(150);
       this._$score.fadeIn(150);
+    },
+    
+    _selectGameColors: function() {
+      var game = this;
+      var colorCount = Math.max(4, Math.min(8, this.options.colorCount)); // Ensure 4-8 colors
+      var allColors = [];
+      
+      // Extract all colors from the current theme
+      if (typeof game._theme.blocks !== 'undefined' && game._theme.blocks !== null) {
+        for (var blockType in game._theme.blocks) {
+          var blockColor = game._theme.blocks[blockType];
+          // If it's an array, use the first color
+          if ($.isArray(blockColor) && blockColor.length > 0) {
+            allColors.push(blockColor[0]);
+          } else if (typeof blockColor === 'string') {
+            allColors.push(blockColor);
+          }
+        }
+      }
+      
+      // Remove duplicate colors
+      var uniqueColors = [];
+      for (var i=0; i<allColors.length; i++) {
+        if (uniqueColors.indexOf(allColors[i]) === -1) {
+          uniqueColors.push(allColors[i]);
+        }
+      }
+      
+      // Ensure we have enough unique colors
+      if (uniqueColors.length < colorCount) {
+        // If not enough unique colors, repeat some (though this shouldn't happen with standard themes)
+        while (uniqueColors.length < colorCount) {
+          uniqueColors.push(game._randChoice(uniqueColors));
+        }
+      }
+      
+      // Randomly select the specified number of colors
+      this._selectedColors = [];
+      var colorPool = uniqueColors.slice(); // Create a copy to avoid modifying original
+      for (var i=0; i<colorCount; i++) {
+        var randomIndex = game._randInt(0, colorPool.length - 1);
+        this._selectedColors.push(colorPool[randomIndex]);
+        colorPool.splice(randomIndex, 1); // Remove selected color to avoid duplicates
+      }
     },
 
 
@@ -408,6 +462,8 @@
       ]
     },
 
+    _selectedColors: [], // Stores selected colors for color elimination mode
+    
     _SetupShapeFactory: function(){
       var game = this;
       if( this._shapeFactory !== null ){ return; }
@@ -578,17 +634,33 @@
         data: new Array(game._BLOCK_WIDTH * game._BLOCK_HEIGHT),
         score: 0,
         toClear: {},
+        colorCounts: {}, // Tracks count of each color
+        colorBlockMap: {}, // Maps color to list of block positions
         check: function(x, y) {
           return this.data[this.asIndex(x, y)];
         },
         add: function(x, y, blockType, blockVariation, blockIndex, blockOrientation) {
           if (x >= 0 && x < game._BLOCK_WIDTH && y >= 0 && y < game._BLOCK_HEIGHT) {
-            this.data[this.asIndex(x, y)] = {
+            var index = this.asIndex(x, y);
+            var color = game._board.getBlockColor(blockType, blockVariation, blockIndex, false);
+            
+            this.data[index] = {
               blockType: blockType, 
               blockVariation: blockVariation, 
               blockIndex: blockIndex, 
-              blockOrientation: blockOrientation
+              blockOrientation: blockOrientation,
+              color: color
             };
+            
+            // Update color counts and map
+            if (game.options.colorElimination) {
+              if (!this.colorCounts[color]) {
+                this.colorCounts[color] = 0;
+                this.colorBlockMap[color] = [];
+              }
+              this.colorCounts[color]++;
+              this.colorBlockMap[color].push({x: x, y: y, index: index});
+            }
           }
         },
         getFreeSpaces: function() {
@@ -609,6 +681,8 @@
         clearAll: function() {
           delete this.data;
           this.data = new Array(game._BLOCK_WIDTH * game._BLOCK_HEIGHT);
+          this.colorCounts = {};
+          this.colorBlockMap = {};
         },
         _popRow: function(row_to_pop) {
           for (var i=game._BLOCK_WIDTH*(row_to_pop+1) - 1; i>=0; i--) {
@@ -640,6 +714,99 @@
 
           var clearedLines = game._board.lines - startLines;
           this._updateScore(clearedLines);
+          
+          // Check for color elimination after line clears
+          if (game.options.colorElimination) {
+            this.checkForColorEliminations();
+          }
+        },
+        checkForColorEliminations: function() {
+          var colorsToEliminate = [];
+          
+          // Find colors with count > 10
+          for (var color in this.colorCounts) {
+            if (this.colorCounts[color] > 10) {
+              colorsToEliminate.push(color);
+            }
+          }
+          
+          // Eliminate each color
+          for (var i=0; i<colorsToEliminate.length; i++) {
+            this.eliminateColor(colorsToEliminate[i]);
+          }
+        },
+        eliminateColor: function(color) {
+          if (!this.colorBlockMap[color] || this.colorBlockMap[color].length === 0) {
+            return;
+          }
+          
+          var count = this.colorBlockMap[color].length;
+          
+          // Remove blocks from data array
+          for (var i=0; i<this.colorBlockMap[color].length; i++) {
+            var block = this.colorBlockMap[color][i];
+            this.data[block.index] = undefined;
+          }
+          
+          // Update score
+          var scoreIncrement = count * 100; // 100 points per block eliminated
+          this.score += scoreIncrement;
+          game._$scoreText.text(this.score);
+          
+          // Trigger callback
+          game.options.onColorElimination.call(game.element, color, count, scoreIncrement, this.score);
+          
+          // Remove color from counts and map
+          delete this.colorCounts[color];
+          delete this.colorBlockMap[color];
+          
+          // Apply gravity - move blocks down to fill empty spaces
+          this.applyGravity();
+          
+          // Re-render the board
+          game._board.renderChanged = true;
+        },
+        applyGravity: function() {
+          for (var x=0; x<game._BLOCK_WIDTH; x++) {
+            var writeIndex = game._BLOCK_HEIGHT - 1;
+            
+            // Move down non-empty blocks
+            for (var y=game._BLOCK_HEIGHT - 1; y>=0; y--) {
+              var currentIndex = this.asIndex(x, y);
+              if (this.data[currentIndex] !== undefined) {
+                if (writeIndex !== y) {
+                  var newIndex = this.asIndex(x, writeIndex);
+                  this.data[newIndex] = this.data[currentIndex];
+                  this.data[currentIndex] = undefined;
+                }
+                writeIndex--;
+              }
+            }
+          }
+          
+          // Re-calculate color counts and map after gravity
+          if (game.options.colorElimination) {
+            this.rebuildColorData();
+          }
+        },
+        rebuildColorData: function() {
+          this.colorCounts = {};
+          this.colorBlockMap = {};
+          
+          for (var i=0; i<this.data.length; i++) {
+            if (this.data[i] !== undefined) {
+              var color = this.data[i].color;
+              var x = this.asX(i);
+              var y = this.asY(i);
+              
+              if (!this.colorCounts[color]) {
+                this.colorCounts[color] = 0;
+                this.colorBlockMap[color] = [];
+              }
+              this.colorCounts[color]++;
+              this.colorBlockMap[color].push({x: x, y: y, index: i});
+            }
+          }
         },
         _updateScore: function(numLines) {
           if( numLines <= 0 ) { return; }
@@ -841,6 +1008,12 @@
                   }
                   blockIndex++;
                 }
+                
+                // Check for color elimination immediately after placing blocks
+                if (game.options.colorElimination) {
+                  game._filled.checkForColorEliminations();
+                }
+                
                 game._filled.checkForClears();
                 this.cur = this.nextShape();
                 this.renderChanged = true;
@@ -955,6 +1128,14 @@
           var squareDistance = Math.round(game._block_size*0.30);
 
           var color = this.getBlockColor(blockType, blockVariation, blockIndex, falling);
+          
+          // In color elimination mode, if it's a placed block, use the stored color
+          if (!falling && game.options.colorElimination) {
+            var index = game._filled.asIndex(x/game._block_size, y/game._block_size);
+            if (game._filled.data[index] && game._filled.data[index].color) {
+              color = game._filled.data[index].color;
+            }
+          }
 
           // Draw the main square
           game._ctx.globalAlpha = 1.0;
@@ -1067,6 +1248,7 @@
            * - Use another color for the placed blocks (secondary).
            * - Default to the "original" block color in any of those cases by setting primary and/or secondary to null.
            * - With primary and secondary as null, all blocks keep their original colors.
+           * - In color elimination mode, use only selected colors
            */
 
           var getBlockVariation = function(blockTheme, blockVariation) {
@@ -1082,6 +1264,14 @@
             } else {
               return blockTheme;
             }
+          }
+
+          // In color elimination mode, use only selected colors
+          if (game.options.colorElimination && game._selectedColors.length > 0) {
+            // For both falling and placed blocks, use selected colors
+            // For falling blocks, randomly select from selected colors
+            // For placed blocks, this will be called during add operation, so we need to return a color
+            return game._randChoice(game._selectedColors);
           }
 
           if( typeof falling !== 'boolean' ){ falling = true; }
