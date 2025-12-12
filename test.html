@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockrain.js Test Page</title>
+    <link rel="stylesheet" href="dist/blockrain.css">
+</head>
+<body>
+    <h1>Blockrain.js Test Page</h1>
+    <div id="blockrain"></div>
+    
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="dist/blockrain.jquery.js"></script>
+    
+    <script>
+        $(document).ready(function() {
+            $('#blockrain').blockrain({
+                spotlightMode: false, // 默认关闭聚光灯模式
+                theme: 'modern',
+                speed: 2,
+                autoplay: false,
+                autoplayRestart: false,
+                showFieldOnStart: true,
+                boardWidth: 10,
+                boardHeight: 20,
+                blockWidth: 30,
+                scoreText: '得分',
+                playText: '点击开始游戏',
+                playButtonText: '开始',
+                gameOverText: '游戏结束',
+                restartButtonText: '重新开始',
+                asdwKeys: true,
+                autoBlockWidth: false,
+                autoBlockSize: 10,
+                holdingThreshold: 150,
+                onPlaced: function() {
+                    console.log('方块放置');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

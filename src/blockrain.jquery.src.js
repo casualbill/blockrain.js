@@ -15,6 +15,7 @@
       difficulty: 'normal', // Difficulty (normal|nice|evil).
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
+      spotlightMode: false, // Enable spotlight mode
 
       // Copy
       playText: 'Let\'s play some Tetris',
@@ -934,6 +935,9 @@
             game._drawBackground();
             game._filled.draw();
             this.cur.draw();
+            
+            // Apply spotlight effect if enabled
+            this.drawSpotlight();
           }
         },
 
@@ -1102,6 +1106,49 @@
               return getBlockVariation(game._theme.complexBlocks[blockType], blockVariation);
             }
           }
+        },
+
+        /**
+         * Draw spotlight effect
+         */
+        drawSpotlight: function() {
+          if (!game.options.spotlightMode || !this.cur) return;
+
+          // Calculate the center of the current falling block
+          var blocks = this.cur.getBlocks();
+          var minX = 999, maxX = -999, minY = 999, maxY = -999;
+          for (var i = 0; i < blocks.length; i += 2) {
+            minX = Math.min(minX, blocks[i]);
+            maxX = Math.max(maxX, blocks[i]);
+            minY = Math.min(minY, blocks[i + 1]);
+            maxY = Math.max(maxY, blocks[i + 1]);
+          }
+          var centerX = this.cur.x + Math.floor((minX + maxX) / 2);
+          var centerY = this.cur.y + Math.floor((minY + maxY) / 2);
+
+          // Calculate the 5x5 spotlight area
+          var spotlightSize = 5;
+          var halfSize = Math.floor(spotlightSize / 2);
+          var startX = Math.max(0, centerX - halfSize);
+          var startY = Math.max(0, centerY - halfSize);
+          var endX = Math.min(game._BLOCK_WIDTH - 1, centerX + halfSize);
+          var endY = Math.min(game._BLOCK_HEIGHT - 1, centerY + halfSize);
+
+          // Draw full screen dark overlay
+          game._ctx.globalAlpha = 0.7;
+          game._ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+          game._ctx.fillRect(0, 0, game._PIXEL_WIDTH, game._PIXEL_HEIGHT);
+
+          // Clear the spotlight area
+          game._ctx.clearRect(
+            startX * game._block_size,
+            startY * game._block_size,
+            (endX - startX + 1) * game._block_size,
+            (endY - startY + 1) * game._block_size
+          );
+
+          // Reset alpha
+          game._ctx.globalAlpha = 1.0;
         }
 
       };
@@ -1245,17 +1292,33 @@
 
       // Create the game over menu
       game._$gameover = $(
-        '<div class="blockrain-game-over-holder" style="position:absolute;">'+
-          '<div class="blockrain-game-over">'+
-            '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+
-            '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+
-          '</div>'+
+        '<div class="blockrain-game-over-holder" style="position:absolute;">'+ 
+          '<div class="blockrain-game-over">'+ 
+            '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+ 
+            '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+ 
+          '</div>'+ 
         '</div>').hide();
       game._$gameover.find('.blockrain-game-over-btn').click(function(event){
         event.preventDefault();
         game.restart();
       });
       game._$gameholder.append(game._$gameover);
+      
+      // Create spotlight mode toggle
+      game._$spotlightToggle = $(
+        '<div class="blockrain-spotlight-toggle" style="position:absolute; top:10px; right:10px; z-index:10;">'+ 
+          '<label style="display:inline-flex; align-items:center; cursor:pointer; color:#ffffff; font-size:14px;">'+ 
+            '<input type="checkbox" style="margin-right:5px;" id="spotlightToggle">'+ 
+            '聚光灯模式'+ 
+          '</label>'+ 
+        '</div>');
+      game._$gameholder.append(game._$spotlightToggle);
+      
+      // Add click handler for spotlight toggle
+      game._$spotlightToggle.find('input').change(function(){
+        game.options.spotlightMode = $(this).is(':checked');
+        game._board.renderChanged = true;
+      });
 
       this._createControls();
     },
