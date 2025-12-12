@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  
+  <title>Blockrain.js - 聚光灯模式测试</title>
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui" />
+  <link rel="shortcut icon" href="assets/images/favicon.png">
+  
+  <link href='http://fonts.googleapis.com/css?family=Play:400,700' rel='stylesheet' type='text/css'>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="src/blockrain.css">
+  
+  <style>
+    .test-controls {
+      text-align: center;
+      margin: 20px 0;
+      padding: 20px;
+      background: #f0f0f0;
+      border-radius: 8px;
+    }
+    
+    .test-controls h2 {
+      margin-top: 0;
+      color: #333;
+    }
+    
+    .control-group {
+      margin: 15px 0;
+    }
+    
+    .control-group label {
+      display: inline-block;
+      margin-right: 10px;
+      font-weight: bold;
+      color: #555;
+    }
+    
+    .control-group input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+    
+    .game-container {
+      text-align: center;
+      margin: 30px 0;
+    }
+    
+    .game-container #tetris-test {
+      display: inline-block;
+      width: 300px;
+      height: 600px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="test-controls">
+  <h2>聚光灯模式测试</h2>
+  <div class="control-group">
+    <label for="spotlight-toggle">启用聚光灯模式：</label>
+    <input type="checkbox" id="spotlight-toggle">
+  </div>
+  <p>聚光灯模式会高亮当前下落方块周围的5×5区域，其余部分变暗。</p>
+</div>
+
+<div class="game-container">
+  <div class="game" id="tetris-test"></div>
+</div>
+
+<script src="assets/js/jquery-1.11.1.min.js"></script>
+<script src="src/blockrain.jquery.libs.js"></script>
+<script src="src/blockrain.jquery.src.js"></script>
+<script src="src/blockrain.jquery.themes.js"></script>
+
+<script>
+  // 初始化游戏
+  var $testGame = $('#tetris-test').blockrain({
+    speed: 50,
+    theme: 'modern',
+    spotlightMode: false // 默认为关闭聚光灯模式
+  });
+  
+  // 聚光灯模式开关事件处理
+  $('#spotlight-toggle').change(function() {
+    var spotlightEnabled = $(this).is(':checked');
+    
+    // 更新游戏选项
+    $testGame.blockrain('option', 'spotlightMode', spotlightEnabled);
+    
+    // 强制重新渲染以应用新设置
+    $testGame.data('aerolab-blockrain')._board.render(true);
+  });
+</script>
+
+</body>
+</html>

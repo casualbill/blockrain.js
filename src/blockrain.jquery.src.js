@@ -15,6 +15,7 @@
       difficulty: 'normal', // Difficulty (normal|nice|evil).
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
+      spotlightMode: false, // Enable spotlight mode (highlight current falling block and dim the rest)
 
       // Copy
       playText: 'Let\'s play some Tetris',
@@ -934,6 +935,45 @@
             game._drawBackground();
             game._filled.draw();
             this.cur.draw();
+            
+            // 聚光灯模式效果
+            if (game.options.spotlightMode && this.cur) {
+              // 获取当前下落方块的边界
+              var bounds = this.cur.getBounds();
+              // 计算方块的中心位置
+              var centerX = this.cur.x + (bounds.left + bounds.right) / 2;
+              var centerY = this.cur.y + (bounds.top + bounds.bottom) / 2;
+              
+              // 计算5×5高亮区域的边界
+              var spotlightHalfSize = 2; // 5×5区域的半宽/高
+              var spotlightLeft = Math.round(centerX - spotlightHalfSize);
+              var spotlightRight = Math.round(centerX + spotlightHalfSize);
+              var spotlightTop = Math.round(centerY - spotlightHalfSize);
+              var spotlightBottom = Math.round(centerY + spotlightHalfSize);
+              
+              // 转换为像素坐标
+              var spotlightLeftPx = spotlightLeft * game._block_size;
+              var spotlightRightPx = (spotlightRight + 1) * game._block_size;
+              var spotlightTopPx = spotlightTop * game._block_size;
+              var spotlightBottomPx = (spotlightBottom + 1) * game._block_size;
+              
+              // 绘制半透明黑色遮罩覆盖整个游戏区域
+              game._ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+              game._ctx.fillRect(0, 0, game._PIXEL_WIDTH, game._PIXEL_HEIGHT);
+              
+              // 使用clip()方法创建高亮区域
+              game._ctx.save();
+              game._ctx.beginPath();
+              game._ctx.rect(spotlightLeftPx, spotlightTopPx, spotlightRightPx - spotlightLeftPx, spotlightBottomPx - spotlightTopPx);
+              game._ctx.clip();
+              
+              // 重新绘制高亮区域内的内容
+              game._drawBackground();
+              game._filled.draw();
+              this.cur.draw();
+              
+              game._ctx.restore();
+            }
           }
         },
 
