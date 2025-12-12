@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+
+  <title>Blockrain.js - 颜色消除模式测试</title>
+
+  <meta name="description" content="Blockrain.js 颜色消除模式测试页面" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui" />
+  <link rel="shortcut icon" href="assets/images/favicon.png">
+
+  <link href='http://fonts.googleapis.com/css?family=Play:400,700' rel='stylesheet' type='text/css'>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="src/blockrain.css">
+
+  <style>
+    body {
+      background-color: #1a1a1a;
+      color: #ffffff;
+      font-family: 'Play', sans-serif;
+    }
+    .test-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 20px;
+    }
+    .game-wrapper {
+      margin: 20px;
+      padding: 20px;
+      border: 2px solid #4CAF50;
+      border-radius: 10px;
+      background-color: #2d2d2d;
+      box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+    }
+    .game-title {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      text-align: center;
+      color: #4CAF50;
+      text-shadow: 0 0 5px rgba(76, 175, 80, 0.8);
+    }
+    .controls {
+      margin: 20px;
+      padding: 20px;
+      border: 2px solid #4CAF50;
+      border-radius: 10px;
+      background-color: #2d2d2d;
+      text-align: center;
+      box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+    }
+    .control-button {
+      margin: 5px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background-color: #4CAF50;
+      color: white;
+      transition: background-color 0.3s ease;
+    }
+    .control-button:hover {
+      background-color: #45a049;
+      box-shadow: 0 0 10px rgba(76, 175, 80, 0.8);
+    }
+    .color-count-control {
+      margin: 10px;
+    }
+    .color-count-control label {
+      margin-right: 10px;
+      color: #4CAF50;
+      font-weight: bold;
+    }
+    .color-count-control input {
+      width: 50px;
+      padding: 5px;
+      font-size: 16px;
+      background-color: #3d3d3d;
+      border: 1px solid #4CAF50;
+      border-radius: 5px;
+      color: #ffffff;
+    }
+    h1 {
+      color: #4CAF50;
+      text-shadow: 0 0 10px rgba(76, 175, 80, 0.8);
+    }
+    /* 增加游戏区域高度 */
+    #color-elimination-game,
+    #classic-game {
+      height: 600px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="test-container">
+  <h1>Blockrain.js - 颜色消除模式测试</h1>
+  
+  <div class="controls">
+    <div class="color-count-control">
+      <label for="colorCount">颜色数量 (4-8):</label>
+      <input type="number" id="colorCount" value="6" min="4" max="8">
+    </div>
+    <button class="control-button" id="startGame">开始游戏</button>
+    <button class="control-button" id="pauseGame">暂停游戏</button>
+    <button class="control-button" id="resetGame">重置游戏</button>
+  </div>
+  
+  <div class="game-wrapper">
+    <div class="game-title">颜色消除模式 (6种颜色)</div>
+    <div class="game" id="color-elimination-game"></div>
+  </div>
+  
+  <div class="game-wrapper">
+    <div class="game-title">经典模式 (对比)</div>
+    <div class="game" id="classic-game"></div>
+  </div>
+</div>
+
+<script src="assets/js/jquery-1.11.1.min.js"></script>
+<script src="src/blockrain.jquery.libs.js"></script>
+<script src="src/blockrain.jquery.src.js"></script>
+<script src="src/blockrain.jquery.themes.js"></script>
+
+<script>
+  var colorEliminationGame, classicGame;
+  
+  // 初始化游戏
+  function initGames() {
+    var colorCount = parseInt($('#colorCount').val());
+    
+    // 颜色消除模式游戏
+    colorEliminationGame = $('#color-elimination-game').blockrain({
+      speed: 100,
+      theme: 'modern',
+      colorElimination: true,
+      colorCount: colorCount,
+      onColorElimination: function(color, count) {
+        console.log('颜色消除:', color, '数量:', count);
+        // 可以在这里添加颜色消除的视觉反馈
+      }
+    });
+    
+    // 经典模式游戏 (对比)
+    classicGame = $('#classic-game').blockrain({
+      speed: 100,
+      theme: 'modern'
+    });
+  }
+  
+  // 开始游戏
+  $('#startGame').click(function() {
+    if (!colorEliminationGame) {
+      initGames();
+    }
+    colorEliminationGame.blockrain('start');
+    classicGame.blockrain('start');
+  });
+  
+  // 暂停游戏
+  $('#pauseGame').click(function() {
+    if (colorEliminationGame) {
+      colorEliminationGame.blockrain('pause');
+      classicGame.blockrain('pause');
+    }
+  });
+  
+  // 重置游戏
+  $('#resetGame').click(function() {
+    if (colorEliminationGame) {
+      colorEliminationGame.blockrain('destroy');
+      classicGame.blockrain('destroy');
+      colorEliminationGame = null;
+      classicGame = null;
+      initGames();
+    }
+  });
+  
+  // 颜色数量改变时重置游戏
+  $('#colorCount').change(function() {
+    $('#resetGame').click();
+  });
+  
+  // 初始化游戏
+  initGames();
+</script>
+
+</body>
+</html>

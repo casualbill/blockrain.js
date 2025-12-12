@@ -15,6 +15,8 @@
       difficulty: 'normal', // Difficulty (normal|nice|evil).
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
+      colorElimination: false, // Enable color elimination mode
+      colorCount: 6, // Number of colors to use (4-8)
 
       // Copy
       playText: 'Let\'s play some Tetris',
@@ -31,7 +33,9 @@
       // When a block is placed
       onPlaced: function(){},
       // When a line is made. Returns the number of lines, score assigned and total score
-      onLine: function(lines, scoreIncrement, score){}
+      onLine: function(lines, scoreIncrement, score){},
+      // When a color is eliminated. Returns the color and score assigned
+      onColorElimination: function(color, scoreIncrement, score){}
     },
 
 
@@ -55,6 +59,11 @@
     },
 
     _doStart: function() {
+      // Reinitialize available colors for color elimination mode
+      if (this.options.colorElimination) {
+        this._board.initAvailableColors();
+      }
+
       this._filled.clearAll();
       this._filled._resetScore();
       this._board.cur = this._board.nextShape();
@@ -578,17 +587,26 @@
         data: new Array(game._BLOCK_WIDTH * game._BLOCK_HEIGHT),
         score: 0,
         toClear: {},
+        colorCounts: {},
         check: function(x, y) {
           return this.data[this.asIndex(x, y)];
         },
         add: function(x, y, blockType, blockVariation, blockIndex, blockOrientation) {
           if (x >= 0 && x < game._BLOCK_WIDTH && y >= 0 && y < game._BLOCK_HEIGHT) {
+            var color = game._board.getBlockColor(blockType, blockVariation, blockIndex, false);
             this.data[this.asIndex(x, y)] = {
               blockType: blockType, 
               blockVariation: blockVariation, 
               blockIndex: blockIndex, 
-              blockOrientation: blockOrientation
+              blockOrientation: blockOrientation,
+              color: color
             };
+            // Update color count
+            if (this.colorCounts[color]) {
+              this.colorCounts[color]++;
+            } else {
+              this.colorCounts[color] = 1;
+            }
           }
         },
         getFreeSpaces: function() {
@@ -609,10 +627,18 @@
         clearAll: function() {
           delete this.data;
           this.data = new Array(game._BLOCK_WIDTH * game._BLOCK_HEIGHT);
+          this.colorCounts = {};
         },
         _popRow: function(row_to_pop) {
           for (var i=game._BLOCK_WIDTH*(row_to_pop+1) - 1; i>=0; i--) {
             this.data[i] = (i >= game._BLOCK_WIDTH ? this.data[i-game._BLOCK_WIDTH] : undefined);
+          }
+        },
+        _popColumn: function(col_to_pop) {
+          for (var i=game._BLOCK_HEIGHT-1; i>=0; i--) {
+            var currentIndex = col_to_pop + i*game._BLOCK_WIDTH;
+            var aboveIndex = col_to_pop + (i-1)*game._BLOCK_WIDTH;
+            this.data[currentIndex] = (i > 0 ? this.data[aboveIndex] : undefined);
           }
         },
         checkForClears: function() {
@@ -640,6 +666,74 @@
 
           var clearedLines = game._board.lines - startLines;
           this._updateScore(clearedLines);
+
+          // Check for color elimination
+          if (game.options.colorElimination) {
+            this.checkForColorClears();
+          }
+        },
+        checkForColorClears: function() {
+          var colorsToClear = [];
+          for (var color in this.colorCounts) {
+            if (this.colorCounts[color] > 10) {
+              colorsToClear.push(color);
+            }
+          }
+
+          for (var i=0; i<colorsToClear.length; i++) {
+            this.clearColor(colorsToClear[i]);
+          }
+        },
+        clearColor: function(color) {
+          // Clear all blocks of this color
+          var clearedBlocks = 0;
+          for (var i=0; i<this.data.length; i++) {
+            if (this.data[i] && this.data[i].color === color) {
+              this.data[i] = undefined;
+              clearedBlocks++;
+            }
+          }
+
+          // Remove color from colorCounts
+          delete this.colorCounts[color];
+
+          // Apply gravity - drop blocks down each column
+          for (var col=0; col<game._BLOCK_WIDTH; col++) {
+            var writeIndex = game._BLOCK_WIDTH * (game._BLOCK_HEIGHT - 1) + col;
+            for (var row=game._BLOCK_HEIGHT-1; row>=0; row--) {
+              var readIndex = game._BLOCK_WIDTH * row + col;
+              if (this.data[readIndex] !== undefined) {
+                if (writeIndex !== readIndex) {
+                  this.data[writeIndex] = this.data[readIndex];
+                  this.data[readIndex] = undefined;
+                }
+                writeIndex -= game._BLOCK_WIDTH;
+              }
+            }
+          }
+
+          // Update color counts after gravity
+          this.updateColorCounts();
+
+          // Update score for color elimination
+          var scoreIncrement = clearedBlocks * 100;
+          this.score += scoreIncrement;
+          game._$scoreText.text(this.score);
+
+          game.options.onColorElimination.call(game.element, color, scoreIncrement, this.score);
+        },
+        updateColorCounts: function() {
+          this.colorCounts = {};
+          for (var i=0; i<this.data.length; i++) {
+            if (this.data[i] && this.data[i].color) {
+              var color = this.data[i].color;
+              if (this.colorCounts[color]) {
+                this.colorCounts[color]++;
+              } else {
+                this.colorCounts[color] = 1;
+              }
+            }
+          }
         },
         _updateScore: function(numLines) {
           if( numLines <= 0 ) { return; }
@@ -720,8 +814,14 @@
         gameover: false,
 
         renderChanged: true,
+        availableColors: [],
 
         init: function() {
+          // Initialize available colors for color elimination mode
+          if (game.options.colorElimination) {
+            this.initAvailableColors();
+          }
+
           this.cur = this.nextShape();
 
           if( game.options.showFieldOnStart ) {
@@ -731,6 +831,43 @@
           }
 
           this.showStartMessage();
+        },
+        initAvailableColors: function() {
+          var colors = [];
+          var colorCount = Math.max(4, Math.min(8, game.options.colorCount));
+
+          // Extract colors from theme
+          if (typeof game._theme.blocks !== 'undefined' && game._theme.blocks !== null) {
+            var blockTypes = Object.keys(game._theme.blocks);
+            for (var i=0; i<blockTypes.length; i++) {
+              var blockTheme = game._theme.blocks[blockTypes[i]];
+              if ($.isArray(blockTheme)) {
+                for (var j=0; j<blockTheme.length; j++) {
+                  if (typeof blockTheme[j] === 'string' && blockTheme[j].indexOf('#') === 0) {
+                    colors.push(blockTheme[j]);
+                  }
+                }
+              } else if (typeof blockTheme === 'string' && blockTheme.indexOf('#') === 0) {
+                colors.push(blockTheme);
+              }
+            }
+          }
+
+          // If we couldn't extract enough colors from the theme, use default colors
+          if (colors.length < colorCount) {
+            var defaultColors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500', '#800080'];
+            colors = colors.concat(defaultColors.slice(0, colorCount - colors.length));
+          }
+
+          // Shuffle colors and select the desired number
+          for (var i=colors.length-1; i>0; i--) {
+            var j = Math.floor(Math.random() * (i+1));
+            var temp = colors[i];
+            colors[i] = colors[j];
+            colors[j] = temp;
+          }
+
+          this.availableColors = colors.slice(0, colorCount);
         },
 
         showStartMessage: function() {
@@ -775,7 +912,11 @@
             result.x = result.best_x;
           }
 
-          if( typeof game._theme.complexBlocks !== 'undefined' ) {
+          // In color elimination mode, assign a random color from available colors
+          if (game.options.colorElimination && this.availableColors.length > 0) {
+            result.assignedColor = this.availableColors[game._randInt(0, this.availableColors.length-1)];
+          }
+          else if( typeof game._theme.complexBlocks !== 'undefined' ) {
             if( $.isArray(game._theme.complexBlocks[result.blockType]) ) {
               result.blockVariation = game._randInt(0, game._theme.complexBlocks[result.blockType].length-1);
             } else {
@@ -1082,6 +1223,11 @@
             } else {
               return blockTheme;
             }
+          }
+
+          // In color elimination mode, use the assigned color if available
+          if (game.options.colorElimination && this.cur && this.cur.assignedColor) {
+            return this.cur.assignedColor;
           }
 
           if( typeof falling !== 'boolean' ){ falling = true; }
