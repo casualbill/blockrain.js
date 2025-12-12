@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+
+  <title>Blockrain.js - Spotlight Mode Test</title>
+
+  <meta name="description" content="Testing the spotlight mode feature for Blockrain.js Tetris game" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui" />
+  <link rel="shortcut icon" href="assets/images/favicon.png">
+
+  <link href='http://fonts.googleapis.com/css?family=Play:400,700' rel='stylesheet' type='text/css'>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="src/blockrain.css">
+  
+  <style>
+    body {
+      background-color: #1a1a1a;
+      color: #ffffff;
+      font-family: 'Play', sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    
+    h1 {
+      font-size: 2.5em;
+      margin-bottom: 10px;
+      color: #ffd700;
+    }
+    
+    .subtitle {
+      font-size: 1.2em;
+      color: #cccccc;
+    }
+    
+    .test-section {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 40px;
+      margin-bottom: 60px;
+    }
+    
+    .game-container {
+      background: #2a2a2a;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    }
+    
+    .game-title {
+      text-align: center;
+      margin-bottom: 15px;
+      font-size: 1.2em;
+      color: #ffd700;
+    }
+    
+    .game {
+      width: 300px;
+      height: 500px;
+      margin: 0 auto;
+      background: #000000;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    
+    .controls {
+      text-align: center;
+      margin-top: 20px;
+    }
+    
+    .control-btn {
+      background: #ffd700;
+      color: #000000;
+      border: none;
+      padding: 10px 20px;
+      margin: 5px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1em;
+      font-weight: bold;
+      transition: all 0.2s ease;
+    }
+    
+    .control-btn:hover {
+      background: #fff9c4;
+      transform: translateY(-2px);
+    }
+    
+    .info-panel {
+      background: #2a2a2a;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 30px;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    .info-panel h2 {
+      color: #ffd700;
+      margin-top: 0;
+    }
+    
+    .info-panel ul {
+      list-style-type: none;
+      padding: 0;
+    }
+    
+    .info-panel li {
+      margin-bottom: 10px;
+      padding-left: 20px;
+      position: relative;
+    }
+    
+    .info-panel li:before {
+      content: "•";
+      color: #ffd700;
+      font-weight: bold;
+      position: absolute;
+      left: 0;
+    }
+    
+    .keyboard-controls {
+      background: #333333;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    
+    .key {
+      display: inline-block;
+      background: #444444;
+      border: 2px solid #666666;
+      padding: 5px 10px;
+      margin: 2px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-weight: bold;
+      min-width: 20px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Blockrain.js - Spotlight Mode Test</h1>
+      <p class="subtitle">Testing the new spotlight mode feature</p>
+    </header>
+    
+    <div class="info-panel">
+      <h2>聚光灯模式功能说明</h2>
+      <ul>
+        <li><strong>新增功能</strong>：游戏界面左上角新增"Spotlight Mode"开关按钮</li>
+        <li><strong>效果</strong>：启用后整个游戏区域除当前下落方块外全部变暗</li>
+        <li><strong>高亮区域</strong>：以当前下落方块中心为基准，实时高亮其周围 5×5 区域</li>
+        <li><strong>实时更新</strong>：遮罩随方块移动、旋转、瞬降而即时刷新</li>
+        <li><strong>视觉效果</strong>：未高亮区域用半透明黑色遮罩覆盖（透明度 0.7）</li>
+      </ul>
+      
+      <div class="keyboard-controls">
+        <h3>键盘控制</h3>
+        <p>
+          <span class="key">←</span> <span class="key">→</span> 移动方块 | 
+          <span class="key">↑</span> <span class="key">Z</span> <span class="key">X</span> 旋转 | 
+          <span class="key">↓</span> 加速下落
+        </p>
+      </div>
+    </div>
+    
+    <div class="test-section">
+      <div class="game-container">
+        <h3 class="game-title">经典主题 - 聚光灯测试</h3>
+        <div class="game" id="tetris-test-1"></div>
+        <div class="controls">
+          <button class="control-btn" onclick="toggleSpotlight(1)">切换聚光灯模式</button>
+          <button class="control-btn" onclick="restartGame(1)">重新开始</button>
+        </div>
+      </div>
+      
+      <div class="game-container">
+        <h3 class="game-title">现代主题 - 聚光灯测试</h3>
+        <div class="game" id="tetris-test-2"></div>
+        <div class="controls">
+          <button class="control-btn" onclick="toggleSpotlight(2)">切换聚光灯模式</button>
+          <button class="control-btn" onclick="restartGame(2)">重新开始</button>
+        </div>
+      </div>
+      
+      <div class="game-container">
+        <h3 class="game-title">糖果主题 - 聚光灯测试</h3>
+        <div class="game" id="tetris-test-3"></div>
+        <div class="controls">
+          <button class="control-btn" onclick="toggleSpotlight(3)">切换聚光灯模式</button>
+          <button class="control-btn" onclick="restartGame(3)">重新开始</button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="info-panel">
+      <h2>测试步骤</h2>
+      <ul>
+        <li>点击游戏界面左上角的"Spotlight Mode"按钮启用聚光灯模式</li>
+        <li>观察游戏区域除当前下落方块周围5×5区域外是否变暗</li>
+        <li>移动、旋转、加速下落方块，检查聚光灯是否跟随方块移动</li>
+        <li>切换不同主题，验证聚光灯模式在所有主题下都能正常工作</li>
+        <li>点击控制面板中的按钮，测试聚光灯模式的切换功能</li>
+      </ul>
+    </div>
+  </div>
+
+  <script src="assets/js/jquery-1.11.1.min.js"></script>
+  <script src="src/blockrain.jquery.libs.js"></script>
+  <script src="src/blockrain.jquery.src.js"></script>
+  <script src="src/blockrain.jquery.themes.js"></script>
+
+  <script>
+    // Initialize game instances
+    var games = [];
+    
+    games[1] = $('#tetris-test-1').blockrain({
+      speed: 20,
+      theme: 'retro',
+      spotlightMode: false
+    });
+    
+    games[2] = $('#tetris-test-2').blockrain({
+      speed: 20,
+      theme: 'modern',
+      spotlightMode: false
+    });
+    
+    games[3] = $('#tetris-test-3').blockrain({
+      speed: 20,
+      theme: 'candy',
+      spotlightMode: false
+    });
+    
+    // Function to toggle spotlight mode
+    function toggleSpotlight(gameIndex) {
+      if (games[gameIndex]) {
+        games[gameIndex].blockrain('toggleSpotlight');
+      }
+    }
+    
+    // Function to restart game
+    function restartGame(gameIndex) {
+      if (games[gameIndex]) {
+        games[gameIndex].blockrain('restart');
+      }
+    }
+    
+    // Auto-start all games
+    setTimeout(function() {
+      for (var i = 1; i <= 3; i++) {
+        if (games[i]) {
+          games[i].blockrain('start');
+        }
+      }
+    }, 500);
+  </script>
+</body>
+</html>
