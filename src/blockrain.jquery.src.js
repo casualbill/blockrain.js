@@ -15,6 +15,8 @@
       difficulty: 'normal', // Difficulty (normal|nice|evil).
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
+      colorElimination: false, // Enable color elimination mode
+      colorCount: 6, // Number of colors to use (4-8)
 
       // Copy
       playText: 'Let\'s play some Tetris',
@@ -583,11 +585,18 @@
         },
         add: function(x, y, blockType, blockVariation, blockIndex, blockOrientation) {
           if (x >= 0 && x < game._BLOCK_WIDTH && y >= 0 && y < game._BLOCK_HEIGHT) {
+            // 获取并存储方块颜色信息（仅在颜色消除模式下）
+            var color = null;
+            if (game.options.colorElimination) {
+              color = game._board.getBlockColor(blockType, blockVariation, blockIndex, true);
+            }
+            
             this.data[this.asIndex(x, y)] = {
               blockType: blockType, 
               blockVariation: blockVariation, 
               blockIndex: blockIndex, 
-              blockOrientation: blockOrientation
+              blockOrientation: blockOrientation,
+              color: color
             };
           }
         },
@@ -615,10 +624,32 @@
             this.data[i] = (i >= game._BLOCK_WIDTH ? this.data[i-game._BLOCK_WIDTH] : undefined);
           }
         },
+        
+        // 应用重力效果，让方块下落补空
+        _applyGravity: function() {
+          for (var x=0; x<game._BLOCK_WIDTH; x++) {
+            var writeIndex = game._BLOCK_WIDTH*(game._BLOCK_HEIGHT-1) + x;
+            
+            // 从下往上扫描每一列
+            for (var y=game._BLOCK_HEIGHT-1; y>=0; y--) {
+              var readIndex = game._BLOCK_WIDTH*y + x;
+              
+              // 如果当前位置有方块，则将其移动到writeIndex位置
+              if (this.data[readIndex]) {
+                if (readIndex !== writeIndex) {
+                  this.data[writeIndex] = this.data[readIndex];
+                  this.data[readIndex] = undefined;
+                }
+                writeIndex -= game._BLOCK_WIDTH;
+              }
+            }
+          }
+        },
         checkForClears: function() {
           var startLines = game._board.lines;
           var rows = [], i, len, count, mod;
 
+          // 经典行消除逻辑
           for (i=0, len=this.data.length; i<len; i++) {
             mod = this.asX(i);
             if (mod == 0) count = 0;
@@ -635,6 +666,47 @@
             game._board.lines++;
             if( game._board.lines % 10 == 0 && game._board.dropDelay > 1 ) {
               game._board.dropDelay *= 0.9;
+            }
+          }
+
+          // 颜色消除逻辑（仅在颜色消除模式下）
+          if (game.options.colorElimination) {
+            var colorCounts = {};
+            
+            // 统计每种颜色的方块数量
+            for (i=0, len=this.data.length; i<len; i++) {
+              if (this.data[i] && this.data[i].color) {
+                var color = this.data[i].color;
+                if (!colorCounts[color]) {
+                  colorCounts[color] = 0;
+                }
+                colorCounts[color]++;
+              }
+            }
+            
+            // 检查哪些颜色需要消除（数量 > 10）
+            var colorsToClear = [];
+            for (var color in colorCounts) {
+              if (colorCounts[color] > 10) {
+                colorsToClear.push(color);
+              }
+            }
+            
+            // 清除指定颜色的所有方块
+            for (var c=0; c<colorsToClear.length; c++) {
+              var colorToClear = colorsToClear[c];
+              
+              for (i=0, len=this.data.length; i<len; i++) {
+                if (this.data[i] && this.data[i].color === colorToClear) {
+                  this.data[i] = undefined;
+                }
+              }
+              
+              // 消除后，上方方块受重力影响下落并补空
+              this._applyGravity();
+              
+              // 更新分数（每消除一种颜色获得100分）
+              this._updateScore(1); // 这里可以根据需要调整分数计算方式
             }
           }
 
@@ -660,7 +732,12 @@
             if (this.data[i] !== undefined) {
               row = this.asY(i);
               var block = this.data[i];
-              game._board.drawBlock(this.asX(i), row, block.blockType, block.blockVariation, block.blockIndex, block.blockOrientation);
+              // 在颜色消除模式下，使用存储在方块数据结构中的颜色信息
+              var blockColor = null;
+              if (game.options.colorElimination) {
+                blockColor = block.color;
+              }
+              game._board.drawBlock(this.asX(i), row, block.blockType, block.blockVariation, block.blockIndex, block.blockOrientation, false, blockColor);
             }
           }
         }
@@ -943,7 +1020,7 @@
          * The blockType is used to draw any block. 
          * The falling attribute is needed to apply different styles for falling and placed blocks.
          */
-        drawBlock: function(x, y, blockType, blockVariation, blockIndex, blockRotation, falling) {
+        drawBlock: function(x, y, blockType, blockVariation, blockIndex, blockRotation, falling, color) {
 
           // convert x and y to pixel
           x = x * game._block_size;
@@ -954,7 +1031,10 @@
           var borderDistance = Math.round(game._block_size*0.23);
           var squareDistance = Math.round(game._block_size*0.30);
 
-          var color = this.getBlockColor(blockType, blockVariation, blockIndex, falling);
+          // 如果没有提供颜色参数，则使用getBlockColor方法计算颜色
+          if (typeof color === 'undefined' || color === null) {
+            color = this.getBlockColor(blockType, blockVariation, blockIndex, falling);
+          }
 
           // Draw the main square
           game._ctx.globalAlpha = 1.0;
