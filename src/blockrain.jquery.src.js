@@ -125,21 +125,44 @@
      */
     updateSizes: function() {
 
-      this._PIXEL_WIDTH = this.element.innerWidth();
-      this._PIXEL_HEIGHT = this.element.innerHeight();
+      // Get container dimensions
+      var containerWidth = this.element.innerWidth();
+      var containerHeight = this.element.innerHeight();
 
       this._BLOCK_WIDTH = this.options.blockWidth;
-      this._BLOCK_HEIGHT = Math.floor(this.element.innerHeight() / this.element.innerWidth() * this._BLOCK_WIDTH);
+      this._BLOCK_HEIGHT = Math.floor(containerHeight / containerWidth * this._BLOCK_WIDTH);
 
-      this._block_size = Math.floor(this._PIXEL_WIDTH / this._BLOCK_WIDTH);
+      // Calculate block size to fit exactly within container
+      this._block_size = Math.floor(containerWidth / this._BLOCK_WIDTH);
       this._border_width = 2;
 
-      // Recalculate the pixel width and height so the canvas always has the best possible size
+      // Recalculate pixel dimensions to fit within container
       this._PIXEL_WIDTH = this._block_size * this._BLOCK_WIDTH;
       this._PIXEL_HEIGHT = this._block_size * this._BLOCK_HEIGHT;
 
-      this._$canvas .attr('width', this._PIXEL_WIDTH)
-                    .attr('height', this._PIXEL_HEIGHT);
+      // Ensure pixel dimensions do not exceed container
+      if (this._PIXEL_WIDTH > containerWidth) {
+        this._block_size--;
+        this._PIXEL_WIDTH = this._block_size * this._BLOCK_WIDTH;
+        this._PIXEL_HEIGHT = this._block_size * this._BLOCK_HEIGHT;
+      }
+      if (this._PIXEL_HEIGHT > containerHeight) {
+        this._block_size--;
+        this._PIXEL_WIDTH = this._block_size * this._BLOCK_WIDTH;
+        this._PIXEL_HEIGHT = this._block_size * this._BLOCK_HEIGHT;
+      }
+
+      // Update game container size to fit within parent
+      this._$gameContainer.css('width', this._PIXEL_WIDTH + 'px').css('height', this._PIXEL_HEIGHT + 'px');
+
+      // Update background grid and blocks container size
+      this._$backgroundGrid.css('width', this._PIXEL_WIDTH + 'px').css('height', this._PIXEL_HEIGHT + 'px');
+      this._$blocksContainer.css('width', this._PIXEL_WIDTH + 'px').css('height', this._PIXEL_HEIGHT + 'px');
+
+      // Render the board to update all blocks with new sizes
+      if (this._board !== null) {
+        this._board.render(true);
+      }
     },
 
 
@@ -173,7 +196,7 @@
 
       if( this._board !== null ) {
         if( typeof this._theme.background === 'string' ) {
-          this._$canvas.css('background-color', this._theme.background);
+          this._$gameContainer.css('background-color', this._theme.background);
         }
         this._board.render();
       }
@@ -196,9 +219,10 @@
     _$scoreText: null,
 
 
-    // Canvas
-    _canvas: null,
-    _ctx: null,
+    // DOM Containers
+    _$gameContainer: null,
+    _$backgroundGrid: null,
+    _$blocksContainer: null,
 
 
     // Initialization
@@ -212,6 +236,24 @@
       this._createUI();
 
       this._refreshBlockSizes();
+
+      // Create the game DOM container instead of Canvas
+      this._$gameContainer = $('<div class="blockrain-game-container"></div>');
+      this._$gameContainer.css('position', 'relative').css('width', '100%').css('height', '100%').css('overflow', 'hidden');
+      if( typeof this._theme.background === 'string' ) {
+        this._$gameContainer.css('background-color', this._theme.background);
+      }
+      this._$gameholder.append(this._$gameContainer);
+
+      // Create the background grid container
+      this._$backgroundGrid = $('<div class="blockrain-background-grid"></div>');
+      this._$backgroundGrid.css('position', 'absolute').css('top', '0').css('left', '0').css('width', '100%').css('height', '100%');
+      this._$gameContainer.append(this._$backgroundGrid);
+
+      // Create the blocks container
+      this._$blocksContainer = $('<div class="blockrain-blocks-container"></div>');
+      this._$blocksContainer.css('position', 'absolute').css('top', '0').css('left', '0').css('width', '100%').css('height', '100%');
+      this._$gameContainer.append(this._$blocksContainer);
 
       this.updateSizes();
 
@@ -266,7 +308,7 @@
 
 
     /**
-     * Draws the background
+     * Draws the background using DOM elements
      */
     _drawBackground: function() {
 
@@ -274,21 +316,28 @@
         return;
       }
 
+      // Clear existing background grid
+      this._$backgroundGrid.empty();
       if( this._theme.backgroundGrid instanceof Image ) {
 
         // Not loaded
         if( this._theme.backgroundGrid.width === 0 || this._theme.backgroundGrid.height === 0 ){ return; }
-
-        this._ctx.globalAlpha = 1.0;
 
         for( var x=0; x<this._BLOCK_WIDTH; x++ ) {
           for( var y=0; y<this._BLOCK_HEIGHT; y++ ) {
             var cx = x * this._block_size;
             var cy = y * this._block_size;
 
-            this._ctx.drawImage(  this._theme.backgroundGrid, 
-                                  0, 0, this._theme.backgroundGrid.width, this._theme.backgroundGrid.height, 
-                                  cx, cy, this._block_size, this._block_size);
+            var gridCell = $('<div class="blockrain-background-cell"></div>');
+            gridCell.css('position', 'absolute')
+                    .css('left', cx + 'px')
+                    .css('top', cy + 'px')
+                    .css('width', this._block_size + 'px')
+                    .css('height', this._block_size + 'px')
+                    .css('background-image', 'url(' + this._theme.backgroundGrid.src + ')')
+                    .css('background-size', '100% 100%');
+
+            this._$backgroundGrid.append(gridCell);
           }
         }
 
@@ -296,24 +345,26 @@
       else if( typeof this._theme.backgroundGrid === 'string' ) {
 
         var borderWidth = this._theme.strokeWidth;
-        var borderDistance = Math.round(this._block_size*0.23);
-        var squareDistance = Math.round(this._block_size*0.30);
-
-        this._ctx.globalAlpha = 1.0;
-        this._ctx.fillStyle = this._theme.backgroundGrid;
 
         for( var x=0; x<this._BLOCK_WIDTH; x++ ) {
           for( var y=0; y<this._BLOCK_HEIGHT; y++ ) {
             var cx = x * this._block_size;
             var cy = y * this._block_size;
 
-            this._ctx.fillRect(cx+borderWidth, cy+borderWidth, this._block_size-borderWidth*2, this._block_size-borderWidth*2);
+            var gridCell = $('<div class="blockrain-background-cell"></div>');
+            gridCell.css('position', 'absolute')
+                    .css('left', cx + 'px')
+                    .css('top', cy + 'px')
+                    .css('width', (this._block_size - borderWidth*2) + 'px')
+                    .css('height', (this._block_size - borderWidth*2) + 'px')
+                    .css('background-color', this._theme.backgroundGrid)
+                    .css('margin', borderWidth + 'px');
+
+            this._$backgroundGrid.append(gridCell);
           }
         }
 
       }
-
-      this._ctx.globalAlpha = 1.0;
     },
 
 
@@ -930,9 +981,13 @@
         render: function(forceRender) {
           if( this.renderChanged || forceRender ) {
             this.renderChanged = false;
-            game._ctx.clearRect(0, 0, game._PIXEL_WIDTH, game._PIXEL_HEIGHT);
+            // Clear existing blocks
+            game._$blocksContainer.empty();
+            // Draw background
             game._drawBackground();
+            // Draw filled blocks
             game._filled.draw();
+            // Draw current falling block
             this.cur.draw();
           }
         },
@@ -946,8 +1001,8 @@
         drawBlock: function(x, y, blockType, blockVariation, blockIndex, blockRotation, falling) {
 
           // convert x and y to pixel
-          x = x * game._block_size;
-          y = y * game._block_size;
+          var px = x * game._block_size;
+          var py = y * game._block_size;
 
           falling = typeof falling === 'boolean' ? falling : false;
           var borderWidth = game._theme.strokeWidth;
@@ -956,19 +1011,24 @@
 
           var color = this.getBlockColor(blockType, blockVariation, blockIndex, falling);
 
-          // Draw the main square
-          game._ctx.globalAlpha = 1.0;
+          // Create block DOM element
+          var blockElement = $('<div class="blockrain-block"></div>');
+          blockElement.css('position', 'absolute')
+                      .css('left', px + 'px')
+                      .css('top', py + 'px')
+                      .css('width', game._block_size + 'px')
+                      .css('height', game._block_size + 'px');
 
           // If it's an image, the block has a specific texture. Use that.
           if( color instanceof Image ) {
-            game._ctx.globalAlpha = 1.0;
 
             // Not loaded
             if( color.width === 0 || color.height === 0 ){ return; }
 
             // A square is the same style for all blocks
             if( typeof game._theme.blocks !== 'undefined' && game._theme.blocks !== null ) {
-              game._ctx.drawImage(color, 0, 0, color.width, color.height, x, y, game._block_size, game._block_size);
+              blockElement.css('background-image', 'url(' + color.src + ')')
+                          .css('background-size', '100% 100%');
             }
             // A custom texture
             else if( typeof game._theme.complexBlocks !== 'undefined' && game._theme.complexBlocks !== null ) {
@@ -998,65 +1058,70 @@
               };
 
               var coords = getCustomBlockImageCoordinates(color, blockType, blockIndex);
-
-              game._ctx.save();
-
-              game._ctx.translate(x, y);
-              game._ctx.translate(game._block_size/2, game._block_size/2);
-              game._ctx.rotate(-Math.PI/2 * blockRotation);
-              game._ctx.drawImage(color,  coords.x, coords.y, coords.w, coords.h, 
-                                          -game._block_size/2, -game._block_size/2, game._block_size, game._block_size);
-              
-              game._ctx.restore();
+              blockElement.css('background-image', 'url(' + color.src + ')')
+                          .css('background-position', (-coords.x) + 'px ' + (-coords.y) + 'px')
+                          .css('background-size', color.width + 'px ' + color.height + 'px')
+                          .css('transform', 'rotate(' + (blockRotation * 90) + 'deg)')
+                          .css('transform-origin', 'center center');
 
             } else {
               // ERROR
-              game._ctx.fillStyle = '#ff0000';
-              game._ctx.fillRect(x, y, game._block_size, game._block_size);
+              blockElement.css('background-color', '#ff0000');
             }
           }
           else if( typeof color === 'string' )
           {
-            game._ctx.fillStyle = color;
-            game._ctx.fillRect(x, y, game._block_size, game._block_size);
+            blockElement.css('background-color', color);
 
             // Inner Shadow
             if( typeof game._theme.innerShadow === 'string' ) {
-              game._ctx.globalAlpha = 1.0;
-              game._ctx.strokeStyle = game._theme.innerShadow;
-              game._ctx.lineWidth = 1.0;
-
-              // Draw the borders
-              game._ctx.strokeRect(x+1, y+1, game._block_size-2, game._block_size-2);
+              blockElement.css('box-shadow', 'inset 0 0 0 1px ' + game._theme.innerShadow);
             }
 
             // Decoration (borders)
             if( typeof game._theme.stroke === 'string' ) {
-              game._ctx.globalAlpha = 1.0;
-              game._ctx.fillStyle = game._theme.stroke;
-              game._ctx.strokeStyle = game._theme.stroke;
-              game._ctx.lineWidth = borderWidth;
-
-              // Draw the borders
-              game._ctx.strokeRect(x, y, game._block_size, game._block_size);
+              blockElement.css('border', borderWidth + 'px solid ' + game._theme.stroke);
             }
             if( typeof game._theme.innerStroke === 'string' ) {
-              // Draw the inner dashes
-              game._ctx.fillStyle = game._theme.innerStroke;
-              game._ctx.fillRect(x+borderDistance, y+borderDistance, game._block_size-borderDistance*2, borderWidth);
-              // The rects shouldn't overlap, to prevent issues with transparency
-              game._ctx.fillRect(x+borderDistance, y+borderDistance+borderWidth, borderWidth, game._block_size-borderDistance*2-borderWidth);
+              // Create inner stroke elements
+              var innerStroke1 = $('<div class="blockrain-inner-stroke"></div>');
+              innerStroke1.css('position', 'absolute')
+                          .css('left', borderDistance + 'px')
+                          .css('top', borderDistance + 'px')
+                          .css('width', (game._block_size - borderDistance*2) + 'px')
+                          .css('height', borderWidth + 'px')
+                          .css('background-color', game._theme.innerStroke);
+
+              var innerStroke2 = $('<div class="blockrain-inner-stroke"></div>');
+              innerStroke2.css('position', 'absolute')
+                          .css('left', borderDistance + 'px')
+                          .css('top', (borderDistance + borderWidth) + 'px')
+                          .css('width', borderWidth + 'px')
+                          .css('height', (game._block_size - borderDistance*2 - borderWidth) + 'px')
+                          .css('background-color', game._theme.innerStroke);
+
+              blockElement.append(innerStroke1, innerStroke2);
             }
             if( typeof game._theme.innerSquare === 'string' ) {
-              // Draw the inner square
-              game._ctx.fillStyle = game._theme.innerSquare;
-              game._ctx.globalAlpha = 0.2;
-              game._ctx.fillRect(x+squareDistance, y+squareDistance, game._block_size-squareDistance*2, game._block_size-squareDistance*2);
+              // Create inner square element
+              var innerSquare = $('<div class="blockrain-inner-square"></div>');
+              innerSquare.css('position', 'absolute')
+                         .css('left', squareDistance + 'px')
+                         .css('top', squareDistance + 'px')
+                         .css('width', (game._block_size - squareDistance*2) + 'px')
+                         .css('height', (game._block_size - squareDistance*2) + 'px')
+                         .css('background-color', game._theme.innerSquare)
+                         .css('opacity', '0.2');
+
+              blockElement.append(innerSquare);
             }
           }
 
+          // Add block to container
+          game._$blocksContainer.append(blockElement);
+
           // Return the alpha back to 1.0 so we don't create any issues with other drawings.
-          game._ctx.globalAlpha = 1.0;
+          // Not needed for DOM rendering
         },
 
 
