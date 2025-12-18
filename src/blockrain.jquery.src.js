@@ -134,12 +134,21 @@
       this._block_size = Math.floor(this._PIXEL_WIDTH / this._BLOCK_WIDTH);
       this._border_width = 2;
 
-      // Recalculate the pixel width and height so the canvas always has the best possible size
+      // Recalculate the pixel width and height so the game area always has the best possible size
       this._PIXEL_WIDTH = this._block_size * this._BLOCK_WIDTH;
       this._PIXEL_HEIGHT = this._block_size * this._BLOCK_HEIGHT;
 
-      this._$canvas .attr('width', this._PIXEL_WIDTH)
-                    .attr('height', this._PIXEL_HEIGHT);
+      // Update canvas (if still used) and DOM game area
+      if (this._$canvas) {
+        this._$canvas .attr('width', this._PIXEL_WIDTH)
+                      .attr('height', this._PIXEL_HEIGHT);
+      }
+      if (this._$gameArea) {
+        this._$gameArea.css({
+          width: this._PIXEL_WIDTH + 'px',
+          height: this._PIXEL_HEIGHT + 'px'
+        });
+      }
     },
 
 
@@ -274,21 +283,42 @@
         return;
       }
 
+      // Check if background grid already exists
+      var $bgGrid = this._$gameArea.find('.blockrain-background-grid');
+      if ($bgGrid.length === 0) {
+        $bgGrid = $('<div class="blockrain-background-grid"></div>');
+        $bgGrid.css({
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width: '100%',
+          height: '100%',
+          zIndex: 0
+        });
+        this._$gameArea.append($bgGrid);
+      }
+
       if( this._theme.backgroundGrid instanceof Image ) {
 
         // Not loaded
         if( this._theme.backgroundGrid.width === 0 || this._theme.backgroundGrid.height === 0 ){ return; }
 
-        this._ctx.globalAlpha = 1.0;
+        // Clear existing grid
+        $bgGrid.empty();
 
         for( var x=0; x<this._BLOCK_WIDTH; x++ ) {
           for( var y=0; y<this._BLOCK_HEIGHT; y++ ) {
-            var cx = x * this._block_size;
-            var cy = y * this._block_size;
-
-            this._ctx.drawImage(  this._theme.backgroundGrid, 
-                                  0, 0, this._theme.backgroundGrid.width, this._theme.backgroundGrid.height, 
-                                  cx, cy, this._block_size, this._block_size);
+            var $gridBlock = $('<div class="blockrain-background-grid-block"></div>');
+            $gridBlock.css({
+              position: 'absolute',
+              left: x * this._block_size + 'px',
+              top: y * this._block_size + 'px',
+              width: this._block_size + 'px',
+              height: this._block_size + 'px',
+              backgroundImage: 'url(' + this._theme.backgroundGrid.src + ')',
+              backgroundSize: '100% 100%'
+            });
+            $bgGrid.append($gridBlock);
           }
         }
 
@@ -296,24 +326,26 @@
       else if( typeof this._theme.backgroundGrid === 'string' ) {
 
         var borderWidth = this._theme.strokeWidth;
-        var borderDistance = Math.round(this._block_size*0.23);
-        var squareDistance = Math.round(this._block_size*0.30);
 
-        this._ctx.globalAlpha = 1.0;
-        this._ctx.fillStyle = this._theme.backgroundGrid;
+        // Clear existing grid
+        $bgGrid.empty();
 
         for( var x=0; x<this._BLOCK_WIDTH; x++ ) {
           for( var y=0; y<this._BLOCK_HEIGHT; y++ ) {
-            var cx = x * this._block_size;
-            var cy = y * this._block_size;
-
-            this._ctx.fillRect(cx+borderWidth, cy+borderWidth, this._block_size-borderWidth*2, this._block_size-borderWidth*2);
+            var $gridBlock = $('<div class="blockrain-background-grid-block"></div>');
+            $gridBlock.css({
+              position: 'absolute',
+              left: (x * this._block_size + borderWidth) + 'px',
+              top: (y * this._block_size + borderWidth) + 'px',
+              width: (this._block_size - borderWidth * 2) + 'px',
+              height: (this._block_size - borderWidth * 2) + 'px',
+              backgroundColor: this._theme.backgroundGrid
+            });
+            $bgGrid.append($gridBlock);
           }
         }
 
       }
-
-      this._ctx.globalAlpha = 1.0;
     },
 
 
@@ -930,10 +962,22 @@
         render: function(forceRender) {
           if( this.renderChanged || forceRender ) {
             this.renderChanged = false;
-            game._ctx.clearRect(0, 0, game._PIXEL_WIDTH, game._PIXEL_HEIGHT);
+            // Mark all existing blocks for potential removal
+            var blocksToKeep = {};
+            
+            // Redraw background
             game._drawBackground();
-            game._filled.draw();
-            this.cur.draw();
+            // Redraw all blocks (reusing existing DOM elements where possible)
+            game._filled.draw(blocksToKeep);
+            this.cur.draw(blocksToKeep);
+            
+            // Remove blocks that are no longer needed
+            for (var blockId in game._blocks) {
+              if (!blocksToKeep[blockId]) {
+                game._blocks[blockId].remove();
+                delete game._blocks[blockId];
+              }
+            }
           }
         },
 
@@ -943,11 +987,12 @@
          * The blockType is used to draw any block. 
          * The falling attribute is needed to apply different styles for falling and placed blocks.
          */
-        drawBlock: function(x, y, blockType, blockVariation, blockIndex, blockRotation, falling) {
+        drawBlock: function(x, y, blockType, blockVariation, blockIndex, blockRotation, falling, blocksToKeep) {
 
-          // convert x and y to pixel
-          x = x * game._block_size;
-          y = y * game._block_size;
+          // Check if block is within game area bounds, skip rendering if outside
+          if (x < 0 || x >= game._BLOCK_WIDTH || y < 0 || y >= game._BLOCK_HEIGHT) {
+            return;
+          }
 
           falling = typeof falling === 'boolean' ? falling : false;
           var borderWidth = game._theme.strokeWidth;
@@ -956,107 +1001,115 @@
 
           var color = this.getBlockColor(blockType, blockVariation, blockIndex, falling);
 
-          // Draw the main square
-          game._ctx.globalAlpha = 1.0;
+          // Create block identifier
+          var blockId = x + ',' + y;
+          
+          // Mark this block to be kept
+          if (blocksToKeep) {
+            blocksToKeep[blockId] = true;
+          }
 
-          // If it's an image, the block has a specific texture. Use that.
+          // Reuse existing block if available, otherwise create new one
+          var $block = game._blocks[blockId];
+          if (!$block) {
+            $block = $('<div class="blockrain-block"></div>');
+            game._$gameArea.append($block);
+            game._blocks[blockId] = $block;
+          }
+
+          // Set block position and size
+          $block.css({
+            position: 'absolute',
+            left: x * game._block_size + 'px',
+            top: y * game._block_size + 'px',
+            width: game._block_size + 'px',
+            height: game._block_size + 'px',
+            boxSizing: 'border-box'
+          });
+
+          // Clear previous styles and contents to avoid conflicts
+          $block.removeAttr('style').empty();
+          $block.css({
+            position: 'absolute',
+            left: x * game._block_size + 'px',
+            top: y * game._block_size + 'px',
+            width: game._block_size + 'px',
+            height: game._block_size + 'px',
+            boxSizing: 'border-box'
+          });
+
+          // Apply color or image
           if( color instanceof Image ) {
-            game._ctx.globalAlpha = 1.0;
+            // Use image as background
+            $block.css('background-image', 'url(' + color.src + ')');
+            $block.css('background-size', '100% 100%');
+          } else if( typeof color === 'string' ) {
+            // Use solid color
+            $block.css('background-color', color);
 
-            // Not loaded
-            if( color.width === 0 || color.height === 0 ){ return; }
-
-            // A square is the same style for all blocks
-            if( typeof game._theme.blocks !== 'undefined' && game._theme.blocks !== null ) {
-              game._ctx.drawImage(color, 0, 0, color.width, color.height, x, y, game._block_size, game._block_size);
-            }
-            // A custom texture
-            else if( typeof game._theme.complexBlocks !== 'undefined' && game._theme.complexBlocks !== null ) {
-              if( typeof blockIndex === 'undefined' || blockIndex === null ){ blockIndex = 0; }
-
-              var getCustomBlockImageCoordinates = function(image, blockType, blockIndex) {
-                // The image is based on the first ("upright") orientation
-                var positions = game._shapes[blockType][0];
-                // Find the number of tiles it should have
-                var minX = Math.min(positions[0], positions[2], positions[4], positions[6]);
-                var maxX = Math.max(positions[0], positions[2], positions[4], positions[6]);
-                var minY = Math.min(positions[1], positions[3], positions[5], positions[7]);
-                var maxY = Math.max(positions[1], positions[3], positions[5], positions[7]);
-                var rangeX = maxX - minX + 1;
-                var rangeY = maxY - minY + 1;
-                
-                // X and Y sizes should match. Should.
-                var tileSizeX = image.width / rangeX;
-                var tileSizeY = image.height / rangeY;
-
-                return {
-                  x: tileSizeX * (positions[blockIndex*2]-minX),
-                  y: tileSizeY * Math.abs(minY-positions[blockIndex*2+1]),
-                  w: tileSizeX,
-                  h: tileSizeY
-                };
-              };
-
-              var coords = getCustomBlockImageCoordinates(color, blockType, blockIndex);
-
-              game._ctx.save();
-
-              game._ctx.translate(x, y);
-              game._ctx.translate(game._block_size/2, game._block_size/2);
-              game._ctx.rotate(-Math.PI/2 * blockRotation);
-              game._ctx.drawImage(color,  coords.x, coords.y, coords.w, coords.h, 
-                                          -game._block_size/2, -game._block_size/2, game._block_size, game._block_size);
-              
-              game._ctx.restore();
-
-            } else {
-              // ERROR
-              game._ctx.fillStyle = '#ff0000';
-              game._ctx.fillRect(x, y, game._block_size, game._block_size);
-            }
-          }
-          else if( typeof color === 'string' )
-          {
-            game._ctx.fillStyle = color;
-            game._ctx.fillRect(x, y, game._block_size, game._block_size);
-
-            // Inner Shadow
+            // Apply theme decorations
             if( typeof game._theme.innerShadow === 'string' ) {
-              game._ctx.globalAlpha = 1.0;
-              game._ctx.strokeStyle = game._theme.innerShadow;
-              game._ctx.lineWidth = 1.0;
-
-              // Draw the borders
-              game._ctx.strokeRect(x+1, y+1, game._block_size-2, game._block_size-2);
+              $block.css('box-shadow', 'inset 0 0 0 1px ' + game._theme.innerShadow);
             }
 
-            // Decoration (borders)
             if( typeof game._theme.stroke === 'string' ) {
-              game._ctx.globalAlpha = 1.0;
-              game._ctx.fillStyle = game._theme.stroke;
-              game._ctx.strokeStyle = game._theme.stroke;
-              game._ctx.lineWidth = borderWidth;
+              $block.css('border', borderWidth + 'px solid ' + game._theme.stroke);
+            }
 
-              // Draw the borders
-              game._ctx.strokeRect(x, y, game._block_size, game._block_size);
-            }
-            if( typeof game._theme.innerStroke === 'string' ) {
-              // Draw the inner dashes
-              game._ctx.fillStyle = game._theme.innerStroke;
-              game._ctx.fillRect(x+borderDistance, y+borderDistance, game._block_size-borderDistance*2, borderWidth);
-              // The rects shouldn't overlap, to prevent issues with transparency
-              game._ctx.fillRect(x+borderDistance, y+borderDistance+borderWidth, borderWidth, game._block_size-borderDistance*2-borderWidth);
-            }
-            if( typeof game._theme.innerSquare === 'string' ) {
-              // Draw the inner square
-              game._ctx.fillStyle = game._theme.innerSquare;
-              game._ctx.globalAlpha = 0.2;
-              game._ctx.fillRect(x+squareDistance, y+squareDistance, game._block_size-squareDistance*2, game._block_size-squareDistance*2);
+            // Add inner stroke and square elements if needed
+            if( typeof game._theme.innerStroke === 'string' || typeof game._theme.innerSquare === 'string' ) {
+              var $inner = $('<div class="blockrain-block-inner"></div>');
+              $inner.css({
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: '100%',
+                height: '100%'
+              });
+
+              if( typeof game._theme.innerStroke === 'string' ) {
+                // Add inner stroke elements
+                var $stroke1 = $('<div></div>');
+                $stroke1.css({
+                  position: 'absolute',
+                  left: borderDistance + 'px',
+                  top: borderDistance + 'px',
+                  width: (game._block_size - borderDistance * 2) + 'px',
+                  height: borderWidth + 'px',
+                  backgroundColor: game._theme.innerStroke
+                });
+                $inner.append($stroke1);
+
+                var $stroke2 = $('<div></div>');
+                $stroke2.css({
+                  position: 'absolute',
+                  left: borderDistance + 'px',
+                  top: (borderDistance + borderWidth) + 'px',
+                  width: borderWidth + 'px',
+                  height: (game._block_size - borderDistance * 2 - borderWidth) + 'px',
+                  backgroundColor: game._theme.innerStroke
+                });
+                $inner.append($stroke2);
+              }
+
+              if( typeof game._theme.innerSquare === 'string' ) {
+                // Add inner square
+                var $square = $('<div></div>');
+                $square.css({
+                  position: 'absolute',
+                  left: squareDistance + 'px',
+                  top: squareDistance + 'px',
+                  width: (game._block_size - squareDistance * 2) + 'px',
+                  height: (game._block_size - squareDistance * 2) + 'px',
+                  backgroundColor: game._theme.innerSquare,
+                  opacity: 0.2
+                });
+                $inner.append($square);
+              }
+
+              $block.append($inner);
             }
           }
-
-          // Return the alpha back to 1.0 so we don't create any issues with other drawings.
-          game._ctx.globalAlpha = 1.0;
         },
 
 
@@ -1200,13 +1253,28 @@
 
       this.element.html('').append(this._$gameholder);
 
-      // Create the game canvas and context
-      this._$canvas = $('<canvas style="display:block; width:100%; height:100%; padding:0; margin:0; border:none;" />');
+      // Create DOM game area for block rendering
+      this._$gameArea = $('<div class="blockrain-game-area"></div>');
+      this._$gameArea.css({
+        position: 'relative',
+        display: 'block',
+        width: '100%',
+        height: '100%',
+        padding: 0,
+        margin: 0,
+        border: 'none'
+      });
       if( typeof this._theme.background === 'string' ) {
-        this._$canvas.css('background-color', this._theme.background);
+        this._$gameArea.css('background-color', this._theme.background);
       }
-      this._$gameholder.append(this._$canvas);
+      this._$gameholder.append(this._$gameArea);
 
+      // Initialize block container for DOM elements
+      this._blocks = {}; // Store blocks by their x,y coordinates
+
+      // Create canvas for backward compatibility (if needed)
+      this._$canvas = $('<canvas style="display:none; width:100%; height:100%; padding:0; margin:0; border:none;" />');
+      this._$gameholder.append(this._$canvas);
       this._canvas = this._$canvas.get(0);
       this._ctx = this._canvas.getContext('2d');
 
