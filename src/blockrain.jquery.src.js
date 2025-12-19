@@ -15,6 +15,8 @@
       difficulty: 'normal', // Difficulty (normal|nice|evil).
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
+      showPreview: true, // Enable next blocks preview
+      previewCount: 1, // Number of blocks to preview (1-5)
 
       // Copy
       playText: 'Let\'s play some Tetris',
@@ -705,6 +707,7 @@
 
         animateTimeoutId: null,
         cur: null,
+        next: [], // Array to store upcoming shapes for preview
 
         lines: 0,
 
@@ -722,6 +725,8 @@
         renderChanged: true,
 
         init: function() {
+          // Pre-fill the next array with shapes for preview
+          this.nextShape(true); // _set_next_only = true to fill array without returning a shape
           this.cur = this.nextShape();
 
           if( game.options.showFieldOnStart ) {
@@ -742,8 +747,7 @@
         },
 
         nextShape: function(_set_next_only) {
-          var next = this.next,
-            func, shape, result;
+          var func, shape, result;
 
           if (info.mode == 'nice' || info.mode == 'evil') {
             func = game._niceShapes;
@@ -752,22 +756,37 @@
             func = game._randomShapes();
           }
 
-          if( game.options.no_preview ) {
-            this.next = null;
-            if (_set_next_only) return null;
+          // Ensure previewCount is within 1-5
+          var previewCount = Math.max(1, Math.min(5, game.options.previewCount));
+
+          // Fill the next array if it's not full
+          while (this.next.length < previewCount) {
             shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
             if (!shape) throw new Error('No shape returned from shape function!', func);
             shape.init();
-            result = shape;
+            
+            if( typeof game._theme.complexBlocks !== 'undefined' ) {
+              if( $.isArray(game._theme.complexBlocks[shape.blockType]) ) {
+                shape.blockVariation = game._randInt(0, game._theme.complexBlocks[shape.blockType].length-1);
+              } else {
+                shape.blockVariation = null;
+              }
+            }
+            else if( typeof game._theme.blocks !== 'undefined' ) {
+              if( $.isArray(game._theme.blocks[shape.blockType]) ) {
+                shape.blockVariation = game._randInt(0, game._theme.blocks[shape.blockType].length-1);
+              } else {
+                shape.blockVariation = null;
+              }
+            }
+            
+            this.next.push(shape);
           }
-          else {
-            shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
-            if (!shape) throw new Error('No shape returned from shape function!', func);
-            shape.init();
-            this.next = shape;
-            if (_set_next_only) return null;
-            result = next || this.nextShape();
-          }
+
+          if (_set_next_only) return null;
+          
+          // Get the next shape from the beginning of the array
+          result = this.next.shift();
 
           if( game.options.autoplay ) { //fun little hack...
             game._niceShapes(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, 'normal', result);
@@ -934,6 +953,49 @@
             game._drawBackground();
             game._filled.draw();
             this.cur.draw();
+            
+            // Render preview blocks if enabled
+            console.log('Rendering, showPreview:', game.options.showPreview, 'next array:', this.next);
+            if (game.options.showPreview) {
+              this.renderPreview();
+            }
+          }
+        },
+
+        renderPreview: function() {
+          console.log('renderPreview called, next.length:', this.next.length);
+          // Render preview blocks on the right side of the game
+          var previewX = 12; // Use a fixed position in blocks (not pixels)
+          var previewY = 2;  // Use a fixed position in blocks (not pixels)
+          var blockSize = game._block_size;
+          
+          console.log('Preview params:', { previewX: previewX, previewY: previewY, blockSize: blockSize, _BLOCK_WIDTH: game._BLOCK_WIDTH });
+          
+          for (var i = 0; i < this.next.length; i++) {
+            var shape = this.next[i];
+            console.log('Rendering shape', i, ':', shape);
+            var blocks = shape.getBlocks();
+            
+            // Calculate offset to center the shape in the preview area
+            var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (var j = 0; j < blocks.length; j += 2) {
+              minX = Math.min(minX, blocks[j]);
+              maxX = Math.max(maxX, blocks[j]);
+              minY = Math.min(minY, blocks[j+1]);
+              maxY = Math.max(maxY, blocks[j+1]);
+            }
+            var offsetX = Math.floor((4 - (maxX - minX)) / 2) - minX; // Assume 4-block wide preview area
+            var offsetY = Math.floor((4 - (maxY - minY)) / 2) - minY; // Assume 4-block tall preview area
+            
+            console.log('Shape offsets:', { offsetX: offsetX, offsetY: offsetY, minX: minX, maxX: maxX, minY: minY, maxY: maxY });
+            
+            // Draw each block of the shape
+            for (var j = 0; j < blocks.length; j += 2) {
+              var bx = previewX + blocks[j] + offsetX;
+              var by = previewY + blocks[j+1] + offsetY + (i * 6); // Space between previews
+              console.log('Drawing block at:', bx, by);
+              game._board.drawBlock(bx, by, shape.blockType, shape.blockVariation, j/2, shape.orientation, true);
+            }
           }
         },
 
@@ -1258,8 +1320,26 @@
       game._$gameholder.append(game._$gameover);
 
       this._createControls();
+      this._createPreview();
     },
 
+
+    _createPreview: function() {
+      var game = this;
+      
+      game._$preview = $(
+        '<div class="blockrain-preview-holder" style="position:absolute; right:10px; top:10px;">'+
+          '<div class="blockrain-preview-title">Next</div>'+
+          '<div class="blockrain-preview-content"></div>'+
+        '</div>').hide();
+      
+      game._$gameholder.append(game._$preview);
+      
+      // Show preview if enabled
+      if (game.options.showPreview) {
+        game._$preview.show();
+      }
+    },
 
     _createControls: function() {
 

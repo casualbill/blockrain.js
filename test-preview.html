@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Blockrain.js Preview Test</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <script src="assets/js/jquery-1.11.1.min.js"></script>
+    <script src="dist/blockrain.jquery.js"></script>
+    <style>
+        body {
+            background-color: #111;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+        }
+        .game-container {
+            margin: 0 auto;
+            width: 400px;
+            height: 600px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Blockrain.js - Next Blocks Preview Test</h1>
+    <div class="game-container" id="game"></div>
+    
+    <script>
+        $(document).ready(function() {
+            $('#game').blockrain({
+                showPreview: true,      // Enable the preview feature
+                previewCount: 3         // Show 3 upcoming blocks
+            });
+        });
+    </script>
+</body>
+</html>
