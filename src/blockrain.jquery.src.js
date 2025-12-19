@@ -55,6 +55,18 @@
     },
 
     _doStart: function() {
+      // Initialize game record
+      this._gameRecord = {
+        config: {
+          blockWidth: this.options.blockWidth,
+          difficulty: this.options.difficulty,
+          speed: this.options.speed,
+          theme: this.options.theme
+        },
+        actions: []
+      };
+      this._recordStartTime = Date.now();
+
       this._filled.clearAll();
       this._filled._resetScore();
       this._board.cur = this._board.nextShape();
@@ -67,6 +79,20 @@
       this._$start.fadeOut(150);
       this._$gameover.fadeOut(150);
       this._$score.fadeIn(150);
+    },
+
+    // Record player action
+    _recordAction: function(action, data) {
+      if (this._recordStartTime && this._gameRecord) {
+        var actionRecord = {
+          type: action,
+          timestamp: Date.now() - this._recordStartTime
+        };
+        if (data) {
+          $.extend(actionRecord, data);
+        }
+        this._gameRecord.actions.push(actionRecord);
+      }
     },
 
 
@@ -106,6 +132,96 @@
         this._$scoreText.text(this._filled_score);
       }
       return this._filled.score;
+    },
+
+    // Export game record to JSON file
+    exportRecord: function() {
+      if (!this._gameRecord) return;
+      
+      var dataStr = JSON.stringify(this._gameRecord, null, 2);
+      var dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+      
+      var exportFileDefaultName = 'blockrain-game-record-' + Date.now() + '.json';
+      
+      var linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.click();
+    },
+
+    // Replay the recorded game
+    replay: function() {
+      if (!this._gameRecord) return;
+      
+      // Save the current game record to avoid overwriting
+      var savedGameRecord = JSON.parse(JSON.stringify(this._gameRecord));
+      
+      // Initialize replay mode variables
+      this._replayMode = true;
+      this._replayShapeQueue = [];
+      
+      // Extract all newShape actions from the record to build the shape queue
+      var actions = savedGameRecord.actions;
+      for (var i = 0; i < actions.length; i++) {
+        if (actions[i].type === 'newShape') {
+          this._replayShapeQueue.push(actions[i].blockType);
+        }
+      }
+      
+      this._doStart();
+      
+      // Restore the saved game record
+      this._gameRecord = savedGameRecord;
+      
+      var game = this;
+      var actionIndex = 0;
+      var replayStartTime = Date.now();
+      
+      // Disable user controls during replay
+      this.controls(false);
+      this.touchControls(false);
+      
+      var replayInterval = setInterval(function() {
+        if (actionIndex >= actions.length || game._board.gameover) {
+          clearInterval(replayInterval);
+          // Re-enable user controls after replay
+          game.controls(true);
+          game.touchControls(true);
+          // Disable replay mode
+          game._replayMode = false;
+          game._replayShapeQueue = null;
+          return;
+        }
+        
+        var currentTime = Date.now() - replayStartTime;
+        var currentAction = actions[actionIndex];
+        
+        if (currentTime >= currentAction.timestamp) {
+          switch (currentAction.type) {
+            case 'moveLeft':
+              game._board.cur.moveLeft();
+              break;
+            case 'moveRight':
+              game._board.cur.moveRight();
+              break;
+            case 'drop':
+              game._board.cur.drop();
+              break;
+            case 'rotateLeft':
+              game._board.cur.rotate('left');
+              break;
+            case 'rotateRight':
+              game._board.cur.rotate('right');
+              break;
+            case 'newShape':
+              // Already handled by nextShape method
+              break;
+          }
+          actionIndex++;
+          // Render after each action to update the display
+          game._board.render(true);
+        }
+      }, 10);
     },
 
     freesquares: function() {
@@ -745,34 +861,42 @@
           var next = this.next,
             func, shape, result;
 
-          if (info.mode == 'nice' || info.mode == 'evil') {
-            func = game._niceShapes;
-          }
-          else {
-            func = game._randomShapes();
-          }
+          // Check if we're in replay mode and have recorded shapes
+          if (game._replayMode && game._replayShapeQueue && game._replayShapeQueue.length > 0) {
+            // Use recorded shape type instead of random
+            var recordedBlockType = game._replayShapeQueue.shift();
+            result = game._shapeFactory[recordedBlockType]();
+          } else {
+            // Normal game play - generate random shape
+            if (info.mode == 'nice' || info.mode == 'evil') {
+              func = game._niceShapes;
+            }
+            else {
+              func = game._randomShapes();
+            }
 
-          if( game.options.no_preview ) {
-            this.next = null;
-            if (_set_next_only) return null;
-            shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
-            if (!shape) throw new Error('No shape returned from shape function!', func);
-            shape.init();
-            result = shape;
-          }
-          else {
-            shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
-            if (!shape) throw new Error('No shape returned from shape function!', func);
-            shape.init();
-            this.next = shape;
-            if (_set_next_only) return null;
-            result = next || this.nextShape();
-          }
+            if( game.options.no_preview ) {
+              this.next = null;
+              if (_set_next_only) return null;
+              shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
+              if (!shape) throw new Error('No shape returned from shape function!', func);
+              shape.init();
+              result = shape;
+            }
+            else {
+              shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
+              if (!shape) throw new Error('No shape returned from shape function!', func);
+              shape.init();
+              this.next = shape;
+              if (_set_next_only) return null;
+              result = next || this.nextShape();
+            }
 
-          if( game.options.autoplay ) { //fun little hack...
-            game._niceShapes(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, 'normal', result);
-            result.orientation = result.best_orientation;
-            result.x = result.best_x;
+            if( game.options.autoplay ) { //fun little hack...
+              game._niceShapes(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, 'normal', result);
+              result.orientation = result.best_orientation;
+              result.x = result.best_x;
+            }
           }
 
           if( typeof game._theme.complexBlocks !== 'undefined' ) {
@@ -788,6 +912,11 @@
             } else {
               result.blockVariation = null;
             }
+          }
+
+          // Record the new shape type (only in normal mode)
+          if (!game._replayMode) {
+            game._recordAction('newShape', { blockType: result.blockType });
           }
 
           return result;
@@ -820,12 +949,28 @@
             if( this.holding.left && (now - this.holding.left) >= this.holdingThreshold ) {
               moved = true;
               this.cur.moveLeft();
+              // Record the held movement for replay
+              if (!game._replayMode) {
+                game._recordAction('moveLeft');
+              }
             }
 
             // Move Right by holding
             if( this.holding.right && (now - this.holding.right) >= this.holdingThreshold ) {
               moved = true;
               this.cur.moveRight();
+              // Record the held movement for replay
+              if (!game._replayMode) {
+                game._recordAction('moveRight');
+              }
+            }
+
+            // Drop by holding
+            if( this.holding.drop && (now - this.holding.drop) >= this.holdingThreshold ) {
+              // Drop action is already recorded in the drop function, but we'll ensure it's recorded
+              if (!game._replayMode) {
+                game._recordAction('drop');
+              }
             }
 
             // Test for a collision, add the piece to the filled blocks and fetch the next one
@@ -1249,11 +1394,21 @@
           '<div class="blockrain-game-over">'+
             '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+
             '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+
+            '<a class="blockrain-btn blockrain-export-btn">Export Record</a>'+
+            '<a class="blockrain-btn blockrain-replay-btn">Replay</a>'+
           '</div>'+
         '</div>').hide();
       game._$gameover.find('.blockrain-game-over-btn').click(function(event){
         event.preventDefault();
         game.restart();
+      });
+      game._$gameover.find('.blockrain-export-btn').click(function(event){
+        event.preventDefault();
+        game.exportRecord();
+      });
+      game._$gameover.find('.blockrain-replay-btn').click(function(event){
+        event.preventDefault();
+        game.replay();
       });
       game._$gameholder.append(game._$gameover);
 
@@ -1431,6 +1586,7 @@
           game._board.cur.moveLeft(); 
           game._board.holding.left = Date.now();
           game._board.holding.right = null; 
+          game._recordAction('moveLeft');
         }
       }
       var moveRight = function(start) {
@@ -1439,6 +1595,7 @@
           game._board.cur.moveRight(); 
           game._board.holding.right = Date.now(); 
           game._board.holding.left = null; 
+          game._recordAction('moveRight');
         }
       }
       var drop = function(start) {
@@ -1446,13 +1603,16 @@
         if( ! game._board.holding.drop ) {
           game._board.cur.drop(); 
           game._board.holding.drop = Date.now();
+          game._recordAction('drop');
         }
       }
       var rotateLeft = function() {
         game._board.cur.rotate('left'); 
+        game._recordAction('rotateLeft');
       }
       var rotateRight = function() {
         game._board.cur.rotate('right'); 
+        game._recordAction('rotateRight');
       }
 
       // Handlers: These are used to be able to bind/unbind controls
@@ -1554,6 +1714,7 @@
         game._board.holding.left = Date.now();
         game._board.holding.right = null;
         game._board.holding.drop = null;
+        game._recordAction('moveLeft');
       };
       var moveRight = function(event){
         event.preventDefault();
@@ -1561,11 +1722,13 @@
         game._board.holding.right = Date.now();
         game._board.holding.left = null;
         game._board.holding.drop = null;
+        game._recordAction('moveRight');
       };
       var drop = function(event){
         event.preventDefault();
         game._board.cur.drop();
         game._board.holding.drop = Date.now();
+        game._recordAction('drop');
       };
       var endMoveLeft = function(event){
         event.preventDefault();
@@ -1584,10 +1747,12 @@
       var rotateLeft = function(event){
         event.preventDefault();
         game._board.cur.rotate('left');
+        game._recordAction('rotateLeft');
       };
       var rotateRight = function(event){
         event.preventDefault();
         game._board.cur.rotate('right');
+        game._recordAction('rotateRight');
       };
 
       // Unbind everything by default
