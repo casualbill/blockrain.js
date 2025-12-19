@@ -161,3 +161,53 @@
   margin-bottom: 30px;
 }
 
+/* Skills */
+.blockrain-skills {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  display: flex;
+  gap: 10px;
+  z-index: 10;
+}
+
+.skill-btn {
+  position: relative;
+  background: rgba(0,0,0,0.7);
+  border: 2px solid #ffffff;
+  border-radius: 8px;
+  padding: 10px;
+  color: #ffffff;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 60px;
+}
+
+.skill-btn:hover:not(.disabled) {
+  background: rgba(255,255,255,0.2);
+  transform: translateY(-2px);
+}
+
+.skill-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(0,0,0,0.3);
+}
+
+.skill-icon {
+  font-size: 24px;
+}
+
+.skill-count {
+  font-size: 12px;
+  font-weight: bold;
+  background: rgba(255,255,255,0.2);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
