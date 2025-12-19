@@ -642,28 +642,88 @@
           this._updateScore(clearedLines);
         },
         _updateScore: function(numLines) {
-          if( numLines <= 0 ) { return; }
-          var scores = [0,400,1000,3000,12000];
-          if( numLines >= scores.length ){ numLines = scores.length-1 }
+            if( numLines <= 0 ) { return; }
+            var scores = [0,400,1000,3000,12000];
+            if( numLines >= scores.length ){ numLines = scores.length-1 }
 
-          this.score += scores[numLines];
-          game._$scoreText.text(this.score);
+            // 小格消除时计分翻倍
+            var lineScore = scores[numLines] * 2;
+            this.score += lineScore;
+            game._$scoreText.text(this.score);
 
-          game.options.onLine.call(game.element, numLines, scores[numLines], this.score);
-        },
+            game.options.onLine.call(game.element, numLines, lineScore, this.score);
+          },
         _resetScore: function() {
-          this.score = 0;
-          game._$scoreText.text(this.score);
-        },
-        draw: function() {
-          for (var i=0, len=this.data.length, row, color; i<len; i++) {
-            if (this.data[i] !== undefined) {
-              row = this.asY(i);
-              var block = this.data[i];
-              game._board.drawBlock(this.asX(i), row, block.blockType, block.blockVariation, block.blockIndex, block.blockOrientation);
+            this.score = 0;
+            game._$scoreText.text(this.score);
+          },
+          get: function(x, y) {
+            // 获取指定位置的小格
+            if (x >= 0 && x < game._BLOCK_WIDTH && y >= 0 && y < game._BLOCK_HEIGHT) {
+              return this.data[this.asIndex(x, y)];
+            }
+            return undefined;
+          },
+          checkForFloatingBlocks: function() {
+            // 检查所有小格是否有悬空的情况
+            var floatingBlocks = [];
+            for (var x=0; x<game._BLOCK_WIDTH; x++) {
+              for (var y=0; y<game._BLOCK_HEIGHT; y++) {
+                var block = this.get(x, y);
+                if (block && this.isFloating(x, y)) {
+                  floatingBlocks.push({x: x, y: y, block: block});
+                }
+              }
+            }
+            // 处理悬空小格的下落
+            this.processFloatingBlocks(floatingBlocks);
+          },
+          isFloating: function(x, y) {
+            // 检查当前小格下方是否悬空
+            // 最底部的小格不可能悬空
+            if (y >= game._BLOCK_HEIGHT - 1) {
+              return false;
+            }
+            // 检查下方所有小格直到底边
+            for (var checkY = y + 1; checkY < game._BLOCK_HEIGHT; checkY++) {
+              if (this.get(x, checkY)) {
+                // 下方有小格支撑
+                return false;
+              }
+            }
+            // 下方没有任何支撑小格
+            return true;
+          },
+          processFloatingBlocks: function(floatingBlocks) {
+            // 处理所有悬空小格的下落
+            for (var i=0; i<floatingBlocks.length; i++) {
+              var fb = floatingBlocks[i];
+              // 移除原位置的小格
+              this.remove(fb.x, fb.y);
+              // 找到新的落地位置
+              var newY = fb.y;
+              while (newY < game._BLOCK_HEIGHT - 1 && !this.get(fb.x, newY + 1)) {
+                newY++;
+              }
+              // 添加小格到新位置
+              this.add(fb.x, newY, fb.block.blockType, fb.block.blockVariation, fb.block.blockIndex, fb.block.blockOrientation);
+            }
+          },
+          remove: function(x, y) {
+            // 移除指定位置的小格
+            if (x >= 0 && x < game._BLOCK_WIDTH && y >= 0 && y < game._BLOCK_HEIGHT) {
+              this.data[this.asIndex(x, y)] = undefined;
+            }
+          },
+          draw: function() {
+            for (var i=0, len=this.data.length, row, color; i<len; i++) {
+              if (this.data[i] !== undefined) {
+                row = this.asY(i);
+                var block = this.data[i];
+                game._board.drawBlock(this.asX(i), row, block.blockType, block.blockVariation, block.blockIndex, block.blockOrientation);
+              }
             }
           }
-        }
       };
     },
 
@@ -841,9 +901,12 @@
                   }
                   blockIndex++;
                 }
-                game._filled.checkForClears();
-                this.cur = this.nextShape();
-                this.renderChanged = true;
+                // 检查并处理悬空小格
+                  game._filled.checkForFloatingBlocks();
+                  // 等待所有小格停止移动后再执行消除
+                  game._filled.checkForClears();
+                  this.cur = this.nextShape();
+                  this.renderChanged = true;
 
                 // Stop holding drop (and any other buttons). Just in case the controls get sticky.
                 this.holding.left = null;
