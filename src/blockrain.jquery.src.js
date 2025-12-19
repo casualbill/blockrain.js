@@ -34,6 +34,13 @@
       onLine: function(lines, scoreIncrement, score){}
     },
 
+    // Skills System
+    _skills: {
+      skill1: { name: '精准爆破', uses: 2, maxUses: 2, cooldown: 0, maxCooldown: 30 },
+      skill2: { name: '比例净化', uses: 2, maxUses: 2, cooldown: 0, maxCooldown: 30 },
+      skill3: { name: '行内重组', uses: 2, maxUses: 2, cooldown: 0, maxCooldown: 30 }
+    },
+
 
     /**
      * Start/Restart Game
@@ -54,6 +61,167 @@
       this.options.onGameOver.call(this.element, this._filled.score);
     },
 
+    // Skill 1: 精准爆破 - 随机消除5行方块
+    useSkill1: function() {
+      if (!this._canUseSkill('skill1')) return;
+      
+      // 获取所有有方块的行
+      var filledRows = [];
+      for (var y = 0; y < this._BLOCK_HEIGHT; y++) {
+        var hasBlock = false;
+        for (var x = 0; x < this._BLOCK_WIDTH; x++) {
+          if (this._filled.check(x, y)) {
+            hasBlock = true;
+            break;
+          }
+        }
+        if (hasBlock) filledRows.push(y);
+      }
+      
+      // 随机选择最多5行进行消除
+      var rowsToClear = [];
+      for (var i = 0; i < 5 && filledRows.length > 0; i++) {
+        var randomIndex = Math.floor(Math.random() * filledRows.length);
+        rowsToClear.push(filledRows[randomIndex]);
+        filledRows.splice(randomIndex, 1);
+      }
+      
+      // 按从高到低的顺序消除行
+      rowsToClear.sort(function(a, b) { return a - b; });
+      for (var i = 0; i < rowsToClear.length; i++) {
+        this._filled._popRow(rowsToClear[i]);
+      }
+      
+      this._useSkill('skill1');
+    },
+
+    // Skill 2: 比例净化 - 随机移除全场70%的方块
+    useSkill2: function() {
+      if (!this._canUseSkill('skill2')) return;
+      
+      var blocks = [];
+      for (var i = 0; i < this._filled.data.length; i++) {
+        if (this._filled.data[i]) {
+          blocks.push(i);
+        }
+      }
+      
+      // 随机移除70%的方块
+      var blocksToRemove = Math.floor(blocks.length * 0.7);
+      for (var i = 0; i < blocksToRemove; i++) {
+        if (blocks.length === 0) break;
+        var randomIndex = Math.floor(Math.random() * blocks.length);
+        this._filled.data[blocks[randomIndex]] = undefined;
+        blocks.splice(randomIndex, 1);
+      }
+      
+      this._useSkill('skill2');
+    },
+
+    // Skill 3: 行内重组 - 每行方块向中心线两侧靠拢
+    useSkill3: function() {
+      if (!this._canUseSkill('skill3')) return;
+      
+      var center = Math.floor(this._BLOCK_WIDTH / 2);
+      
+      for (var y = 0; y < this._BLOCK_HEIGHT; y++) {
+        var leftBlocks = [];
+        var rightBlocks = [];
+        
+        // 收集当前行的方块
+        for (var x = 0; x < this._BLOCK_WIDTH; x++) {
+          var block = this._filled.data[this._filled.asIndex(x, y)];
+          if (block) {
+            if (x < center) {
+              leftBlocks.push(block);
+            } else {
+              rightBlocks.push(block);
+            }
+          }
+        }
+        
+        // 清空当前行
+        for (var x = 0; x < this._BLOCK_WIDTH; x++) {
+          this._filled.data[this._filled.asIndex(x, y)] = undefined;
+        }
+        
+        // 重新排列方块
+        for (var i = 0; i < leftBlocks.length; i++) {
+          this._filled.data[this._filled.asIndex(i, y)] = leftBlocks[i];
+        }
+        for (var i = 0; i < rightBlocks.length; i++) {
+          this._filled.data[this._filled.asIndex(this._BLOCK_WIDTH - 1 - i, y)] = rightBlocks[i];
+        }
+      }
+      
+      this._useSkill('skill3');
+    },
+
+    // Check if a skill can be used
+    _canUseSkill: function(skillName) {
+      var skill = this._skills[skillName];
+      return skill.uses > 0 && skill.cooldown <= 0 && this._board.started && !this._board.gameover;
+    },
+
+    // Use a skill
+    _useSkill: function(skillName) {
+      var skill = this._skills[skillName];
+      skill.uses--;
+      skill.cooldown = skill.maxCooldown;
+      this._updateSkillUI();
+    },
+
+    // Update skill UI
+    _updateSkillUI: function() {
+      if (!this._$skills) return;
+      
+      // Update skill 1
+      var skill1 = this._skills.skill1;
+      this._$skills.find('#skill1 .skill-uses').text('×' + skill1.uses);
+      var skill1Btn = this._$skills.find('#skill1');
+      if (skill1.uses <= 0 || skill1.cooldown > 0) {
+        skill1Btn.addClass('disabled');
+      } else {
+        skill1Btn.removeClass('disabled');
+      }
+      skill1Btn.find('.skill-cooldown').text(skill1.cooldown > 0 ? '(' + skill1.cooldown + 's)' : '');
+      
+      // Update skill 2
+      var skill2 = this._skills.skill2;
+      this._$skills.find('#skill2 .skill-uses').text('×' + skill2.uses);
+      var skill2Btn = this._$skills.find('#skill2');
+      if (skill2.uses <= 0 || skill2.cooldown > 0) {
+        skill2Btn.addClass('disabled');
+      } else {
+        skill2Btn.removeClass('disabled');
+      }
+      skill2Btn.find('.skill-cooldown').text(skill2.cooldown > 0 ? '(' + skill2.cooldown + 's)' : '');
+      
+      // Update skill 3
+      var skill3 = this._skills.skill3;
+      this._$skills.find('#skill3 .skill-uses').text('×' + skill3.uses);
+      var skill3Btn = this._$skills.find('#skill3');
+      if (skill3.uses <= 0 || skill3.cooldown > 0) {
+        skill3Btn.addClass('disabled');
+      } else {
+        skill3Btn.removeClass('disabled');
+      }
+      skill3Btn.find('.skill-cooldown').text(skill3.cooldown > 0 ? '(' + skill3.cooldown + 's)' : '');
+    },
+
+    // Start skill cooldown timer
+    _startSkillCooldownTimer: function() {
+      var game = this;
+      setInterval(function() {
+        for (var skillName in game._skills) {
+          if (game._skills[skillName].cooldown > 0) {
+            game._skills[skillName].cooldown--;
+          }
+        }
+        game._updateSkillUI();
+      }, 1000);
+    },
+
     _doStart: function() {
       this._filled.clearAll();
       this._filled._resetScore();
@@ -64,9 +232,18 @@
       this._board.render(true);
       this._board.animate();
 
+      // Reset skills
+      this._skills.skill1.uses = this._skills.skill1.maxUses;
+      this._skills.skill1.cooldown = 0;
+      this._skills.skill2.uses = this._skills.skill2.maxUses;
+      this._skills.skill2.cooldown = 0;
+      this._skills.skill3.uses = this._skills.skill3.maxUses;
+      this._skills.skill3.cooldown = 0;
+
       this._$start.fadeOut(150);
       this._$gameover.fadeOut(150);
       this._$score.fadeIn(150);
+      this._updateSkillUI();
     },
 
 
@@ -1257,7 +1434,41 @@
       });
       game._$gameholder.append(game._$gameover);
 
+      // Create skill buttons
+      game._$skills = $( 
+        '<div class="blockrain-skills-holder" style="position:absolute; top:10px; right:10px; display:flex; flex-direction:column; gap:10px;">'+ 
+          '<button class="blockrain-skill-btn" id="skill1" title="精准爆破 (1)">'+ 
+            '<span class="skill-icon">💣</span>'+ 
+            '<span class="skill-uses">2</span>'+ 
+            '<span class="skill-cooldown"></span>'+ 
+          '</button>'+ 
+          '<button class="blockrain-skill-btn" id="skill2" title="比例净化 (2)">'+ 
+            '<span class="skill-icon">🧹</span>'+ 
+            '<span class="skill-uses">2</span>'+ 
+            '<span class="skill-cooldown"></span>'+ 
+          '</button>'+ 
+          '<button class="blockrain-skill-btn" id="skill3" title="行内重组 (3)">'+ 
+            '<span class="skill-icon">🔄</span>'+ 
+            '<span class="skill-uses">2</span>'+ 
+            '<span class="skill-cooldown"></span>'+ 
+          '</button>'+ 
+        '</div>' 
+      ).appendTo(game._$gameholder);
+
+      // Skill button click handlers
+      game._$skills.find('#skill1').click(function() {
+        game.useSkill1();
+      });
+      game._$skills.find('#skill2').click(function() {
+        game.useSkill2();
+      });
+      game._$skills.find('#skill3').click(function() {
+        game.useSkill3();
+      });
+
       this._createControls();
+      this._updateSkillUI();
+      this._startSkillCooldownTimer();
     },
 
 
@@ -1476,6 +1687,9 @@
           case 38: /*up*/     game._board.cur.rotate('right'); break;
           case 88: /*x*/      game._board.cur.rotate('right'); break;
           case 90: /*z*/      game._board.cur.rotate('left'); break;
+          case 49: /*1*/      game.useSkill1(); caught = true; break;
+          case 50: /*2*/      game.useSkill2(); caught = true; break;
+          case 51: /*3*/      game.useSkill3(); caught = true; break;
           default: caught = false;
         }
         if (caught) evt.preventDefault();
