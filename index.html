@@ -239,6 +239,8 @@
   var $demo = $('#tetris-demo').blockrain({
     speed: 20,
     theme: 'vim',
+    preview: true,
+    previewCount: 3,
     onStart: function() {
       ga( 'send', 'event', 'tetris', 'started');
     },

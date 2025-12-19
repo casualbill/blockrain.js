@@ -138,6 +138,25 @@
   font-weight: bold;
 }
 
+/* Preview */
+.blockrain-preview-holder {
+  position: absolute;
+  top: 100px;
+  right: 20px;
+  text-align: right;
+}
+.blockrain-preview-msg {
+  font-size: 14px;  
+  line-height: 100%;
+  margin-bottom: 10px;
+  font-weight: bold;
+}
+.blockrain-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
 /* Menu */
 .blockrain-start-holder, .blockrain-game-over-holder {
   position: absolute;
