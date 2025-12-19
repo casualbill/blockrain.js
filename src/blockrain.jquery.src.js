@@ -64,9 +64,105 @@
       this._board.render(true);
       this._board.animate();
 
+      // Initialize game recording
+      this._startRecording();
+
       this._$start.fadeOut(150);
       this._$gameover.fadeOut(150);
       this._$score.fadeIn(150);
+    },
+
+    _startRecording: function() {
+      this._recordStartTime = Date.now();
+      this._gameRecord = {
+        config: {
+          blockWidth: this.options.blockWidth,
+          difficulty: this.options.difficulty,
+          speed: this.options.speed,
+          theme: this.options.theme
+        },
+        actions: []
+      };
+    },
+
+    _recordAction: function(action, data) {
+      if (this._recordStartTime && this._gameRecord) {
+        var actionObj = {
+          type: action,
+          timestamp: Date.now() - this._recordStartTime
+        };
+        // Add any additional data to the action object
+        if (data) {
+          $.extend(actionObj, data);
+        }
+        this._gameRecord.actions.push(actionObj);
+      }
+    },
+
+    exportRecord: function() {
+      return this._gameRecord;
+    },
+
+    exportRecordToJSON: function() {
+      return JSON.stringify(this._gameRecord, null, 2);
+    },
+
+    replayRecord: function(record) {
+      // Stop current game
+      this._board.gameover = true;
+      
+      // Reset game
+      this._doStart();
+      
+      // Start replay
+      this._startReplay(record);
+    },
+
+    _startReplay: function(record) {
+      var game = this;
+      var actionIndex = 0;
+      
+      // Disable user controls during replay
+      this._setupControls(false);
+      this._setupTouchControls(false);
+      
+      // Execute actions in sequence
+      var executeNextAction = function() {
+        if (actionIndex < record.actions.length) {
+          var action = record.actions[actionIndex];
+          setTimeout(function() {
+            game._executeReplayAction(action);
+            actionIndex++;
+            executeNextAction();
+          }, action.timestamp - (actionIndex > 0 ? record.actions[actionIndex-1].timestamp : 0));
+        }
+      };
+      
+      executeNextAction();
+    },
+
+    _executeReplayAction: function(action) {
+      switch(action.type) {
+        case 'moveLeft':
+          this._board.cur.moveLeft();
+          break;
+        case 'moveRight':
+          this._board.cur.moveRight();
+          break;
+        case 'drop':
+          this._board.cur.drop();
+          break;
+        case 'rotateLeft':
+          this._board.cur.rotate('left');
+          break;
+        case 'rotateRight':
+          this._board.cur.rotate('right');
+          break;
+        case 'spawn':
+          // Spawn action is recorded when a new block is created
+          // The actual block creation is handled by the game's normal flow
+          break;
+      }
     },
 
 
@@ -790,6 +886,9 @@
             }
           }
 
+          // Record the shape spawn
+          game._recordAction('spawn', {blockType: result.blockType});
+
           return result;
         },
 
@@ -814,18 +913,28 @@
               drop = true;
             moved = true;
               this.dropCount = 0;
+              // Record drop action (including hold)
+              game._recordAction('drop');
             }
 
             // Move Left by holding
             if( this.holding.left && (now - this.holding.left) >= this.holdingThreshold ) {
               moved = true;
               this.cur.moveLeft();
+              // Record hold left action
+              game._recordAction('moveLeft');
+              // Update holding time to create continuous repeat
+              this.holding.left = now - this.holdingThreshold + 50; // Adjust for smoother repetition
             }
 
             // Move Right by holding
             if( this.holding.right && (now - this.holding.right) >= this.holdingThreshold ) {
               moved = true;
               this.cur.moveRight();
+              // Record hold right action
+              game._recordAction('moveRight');
+              // Update holding time to create continuous repeat
+              this.holding.right = now - this.holdingThreshold + 50; // Adjust for smoother repetition
             }
 
             // Test for a collision, add the piece to the filled blocks and fetch the next one
@@ -1249,15 +1358,38 @@
           '<div class="blockrain-game-over">'+
             '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+
             '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+
+            '<a class="blockrain-btn blockrain-export-btn">Export Record</a>'+
+            '<a class="blockrain-btn blockrain-replay-btn">Replay</a>'+
           '</div>'+
         '</div>').hide();
       game._$gameover.find('.blockrain-game-over-btn').click(function(event){
         event.preventDefault();
         game.restart();
       });
+      game._$gameover.find('.blockrain-export-btn').click(function(event){
+        event.preventDefault();
+        game._exportRecordFile();
+      });
+      game._$gameover.find('.blockrain-replay-btn').click(function(event){
+        event.preventDefault();
+        game.replayRecord(game._gameRecord);
+      });
       game._$gameholder.append(game._$gameover);
 
       this._createControls();
+    },
+
+    _exportRecordFile: function() {
+      var data = this.exportRecordToJSON();
+      var blob = new Blob([data], {type: 'application/json'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'blockrain-record-' + Date.now() + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     },
 
 
@@ -1431,14 +1563,16 @@
           game._board.cur.moveLeft(); 
           game._board.holding.left = Date.now();
           game._board.holding.right = null; 
+          game._recordAction('moveLeft');
         }
       }
       var moveRight = function(start) {
         if( ! start ) { game._board.holding.right = null; return; }
         if( ! game._board.holding.right ) {
           game._board.cur.moveRight(); 
-          game._board.holding.right = Date.now(); 
+          game._board.holding.right = Date.now();
           game._board.holding.left = null; 
+          game._recordAction('moveRight');
         }
       }
       var drop = function(start) {
@@ -1446,13 +1580,16 @@
         if( ! game._board.holding.drop ) {
           game._board.cur.drop(); 
           game._board.holding.drop = Date.now();
+          game._recordAction('drop');
         }
       }
       var rotateLeft = function() {
         game._board.cur.rotate('left'); 
+        game._recordAction('rotateLeft');
       }
       var rotateRight = function() {
         game._board.cur.rotate('right'); 
+        game._recordAction('rotateRight');
       }
 
       // Handlers: These are used to be able to bind/unbind controls
@@ -1554,6 +1691,7 @@
         game._board.holding.left = Date.now();
         game._board.holding.right = null;
         game._board.holding.drop = null;
+        game._recordAction('moveLeft');
       };
       var moveRight = function(event){
         event.preventDefault();
@@ -1561,11 +1699,13 @@
         game._board.holding.right = Date.now();
         game._board.holding.left = null;
         game._board.holding.drop = null;
+        game._recordAction('moveRight');
       };
       var drop = function(event){
         event.preventDefault();
         game._board.cur.drop();
         game._board.holding.drop = Date.now();
+        game._recordAction('drop');
       };
       var endMoveLeft = function(event){
         event.preventDefault();
@@ -1584,10 +1724,12 @@
       var rotateLeft = function(event){
         event.preventDefault();
         game._board.cur.rotate('left');
+        game._recordAction('rotateLeft');
       };
       var rotateRight = function(event){
         event.preventDefault();
         game._board.cur.rotate('right');
+        game._recordAction('rotateRight');
       };
 
       // Unbind everything by default
