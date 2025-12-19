@@ -646,10 +646,12 @@
           var scores = [0,400,1000,3000,12000];
           if( numLines >= scores.length ){ numLines = scores.length-1 }
 
-          this.score += scores[numLines];
+          // Double the score for block clearing
+          var scoreIncrement = scores[numLines] * 2;
+          this.score += scoreIncrement;
           game._$scoreText.text(this.score);
 
-          game.options.onLine.call(game.element, numLines, scores[numLines], this.score);
+          game.options.onLine.call(game.element, numLines, scoreIncrement, this.score);
         },
         _resetScore: function() {
           this.score = 0;
@@ -833,14 +835,99 @@
               var cur = this.cur, x = cur.x, y = cur.y, blocks = cur.getBlocks();
               if (game._checkCollisions(x, y+1, blocks, true)) {
                 drop = false;
+                var placedBlocks = [];
                 var blockIndex = 0;
                 for (var i=0; i<cur.blocksLen; i+=2) {
-                  game._filled.add(x + blocks[i], y + blocks[i+1], cur.blockType, cur.blockVariation, blockIndex, cur.orientation);
-                  if (y + blocks[i] < 0) {
+                  var bx = x + blocks[i];
+                  var by = y + blocks[i+1];
+                  game._filled.add(bx, by, cur.blockType, cur.blockVariation, blockIndex, cur.orientation);
+                  placedBlocks.push({x: bx, y: by});
+                  if (by < 0) {
                     gameOver = true;
                   }
                   blockIndex++;
                 }
+                // Check for hanging blocks - all blocks in the entire field
+                var checkAllBlocksForHanging = function() {
+                  var hangingBlocks = [];
+                  // Check every block in the field
+                  for (var x=0; x<game._BLOCK_WIDTH; x++) {
+                    for (var y=0; y<game._BLOCK_HEIGHT; y++) {
+                      if (game._filled.check(x, y)) {
+                        var hasSupport = false;
+                        var belowY = y + 1;
+                        // Check if it's the bottom row
+                        if (belowY >= game._BLOCK_HEIGHT) {
+                          hasSupport = true;
+                        } else {
+                          // Check if there's any block directly below or adjacent below
+                          for (var bx = x-1; bx <= x+1; bx++) {
+                            if (bx >=0 && bx < game._BLOCK_WIDTH) {
+                              if (game._filled.check(bx, belowY)) {
+                                hasSupport = true;
+                                break;
+                              }
+                            }
+                          }
+                        }
+                        if (!hasSupport) {
+                          hangingBlocks.push({x: x, y: y, block: game._filled.data[game._filled.asIndex(x, y)]});
+                        }
+                      }
+                    }
+                  }
+                  return hangingBlocks;
+                };
+                // Recursively check and drop hanging blocks until no more are found
+                var dropAllHangingBlocks = function() {
+                  var hangingBlocks = checkAllBlocksForHanging();
+                  if (hangingBlocks.length === 0) {
+                    return; // No more hanging blocks
+                  }
+                  // Calculate fall positions for all hanging blocks first
+                  var fallenBlocks = [];
+                  for (var i=0; i<hangingBlocks.length; i++) {
+                    var block = hangingBlocks[i];
+                    var fallY = block.y;
+                    // Find the lowest empty position, considering other hanging blocks that will also fall
+                    while (fallY + 1 < game._BLOCK_HEIGHT) {
+                      var positionOccupied = false;
+                      // Check if current position is occupied by a non-hanging block
+                      if (game._filled.check(block.x, fallY + 1)) {
+                        // Check if this occupied block is also a hanging block
+                        var isHanging = false;
+                        for (var j=0; j<hangingBlocks.length; j++) {
+                          if (hangingBlocks[j].x === block.x && hangingBlocks[j].y === fallY + 1) {
+                            isHanging = true;
+                            break;
+                          }
+                        }
+                        if (!isHanging) {
+                          positionOccupied = true;
+                        }
+                      }
+                      if (positionOccupied) {
+                        break;
+                      }
+                      fallY++;
+                    }
+                    fallenBlocks.push({x: block.x, y: fallY, block: block.block});
+                  }
+                  // Remove all hanging blocks
+                  for (var i=0; i<hangingBlocks.length; i++) {
+                    var block = hangingBlocks[i];
+                    game._filled.data[game._filled.asIndex(block.x, block.y)] = undefined;
+                  }
+                  // Add all fallen blocks to their new positions
+                  for (var i=0; i<fallenBlocks.length; i++) {
+                    var fallenBlock = fallenBlocks[i];
+                    game._filled.add(fallenBlock.x, fallenBlock.y, fallenBlock.block.blockType, fallenBlock.block.blockVariation, fallenBlock.block.blockIndex, fallenBlock.block.blockOrientation);
+                  }
+                  // Check again for new hanging blocks caused by this drop
+                  dropAllHangingBlocks();
+                };
+                // Start dropping all hanging blocks
+                dropAllHangingBlocks();
                 game._filled.checkForClears();
                 this.cur = this.nextShape();
                 this.renderChanged = true;
