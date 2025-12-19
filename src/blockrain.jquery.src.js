@@ -15,6 +15,8 @@
       difficulty: 'normal', // Difficulty (normal|nice|evil).
       speed: 20, // The speed of the game. The higher, the faster the pieces go.
       asdwKeys: true, // Enable ASDW keys
+      showPreview: true, // Enable next blocks preview
+      previewCount: 3, // Number of blocks to preview (1-5)
 
       // Copy
       playText: 'Let\'s play some Tetris',
@@ -57,6 +59,7 @@
     _doStart: function() {
       this._filled.clearAll();
       this._filled._resetScore();
+      this._board.previewQueue = []; // Clear preview queue
       this._board.cur = this._board.nextShape();
       this._board.started = true;
       this._board.gameover = false;
@@ -67,6 +70,9 @@
       this._$start.fadeOut(150);
       this._$gameover.fadeOut(150);
       this._$score.fadeIn(150);
+      if (this.options.showPreview) {
+        this._$preview.fadeIn(150);
+      }
     },
 
 
@@ -292,8 +298,7 @@
           }
         }
 
-      }
-      else if( typeof this._theme.backgroundGrid === 'string' ) {
+      } else if( typeof this._theme.backgroundGrid === 'string' ) {
 
         var borderWidth = this._theme.strokeWidth;
         var borderDistance = Math.round(this._block_size*0.23);
@@ -314,6 +319,90 @@
       }
 
       this._ctx.globalAlpha = 1.0;
+    },
+
+    /**
+     * Render preview blocks on the right side of the game
+     */
+    _renderPreview: function() {
+      // Clear previous preview
+      $('.blockrain-preview').empty();
+      
+      // Calculate size for preview blocks
+      var previewBlockSize = this._block_size * 0.6; // 60% of game block size
+      var previewPadding = 10;
+      var previewMargin = 20;
+      
+      // Get the preview queue
+      var previewQueue = this._board.previewQueue;
+      
+      // Render each preview block
+      for (var i = 0; i < Math.min(previewQueue.length, this.options.previewCount); i++) {
+        var shape = previewQueue[i];
+        
+        // Create preview container for this shape
+        var $previewShape = $('<div class="blockrain-preview-shape"></div>');
+        $previewShape.css({
+          'margin-bottom': previewMargin + 'px',
+          'position': 'relative'
+        });
+        
+        // Determine the size of this shape to center it
+        var shapeSize = 0;
+        switch (shape.type) {
+          case 'line':
+            shapeSize = 4;
+            break;
+          case 'square':
+            shapeSize = 2;
+            break;
+          case 'arrow':
+          case 'rightHook':
+          case 'leftHook':
+          case 'leftZag':
+          case 'rightZag':
+            shapeSize = 3;
+            break;
+        }
+        
+        // Set container size
+        var containerSize = shapeSize * previewBlockSize;
+        $previewShape.css({
+          'width': containerSize + 'px',
+          'height': containerSize + 'px'
+        });
+        
+        // Draw each block in the shape
+        for (var j = 0; j < shape.blocks.length; j++) {
+          var block = shape.blocks[j];
+          var $block = $('<div class="blockrain-preview-block"></div>');
+          
+          // Calculate position
+          var blockX = block.x * previewBlockSize;
+          var blockY = block.y * previewBlockSize;
+          
+          // Set block style
+          $block.css({
+            'position': 'absolute',
+            'width': previewBlockSize + 'px',
+            'height': previewBlockSize + 'px',
+            'left': blockX + 'px',
+            'top': blockY + 'px',
+            'border': '2px solid #000',
+            'box-sizing': 'border-box'
+          });
+          
+          // Set block color
+          var color = this.getBlockColor(shape.type, shape.variation, j, true);
+          if (typeof color === 'string') {
+            $block.css('background-color', color);
+          }
+          
+          $previewShape.append($block);
+        }
+        
+        $('.blockrain-preview').append($previewShape);
+      }
     },
 
 
@@ -705,6 +794,7 @@
 
         animateTimeoutId: null,
         cur: null,
+        previewQueue: [],
 
         lines: 0,
 
@@ -742,8 +832,7 @@
         },
 
         nextShape: function(_set_next_only) {
-          var next = this.next,
-            func, shape, result;
+          var func, shape, result;
 
           if (info.mode == 'nice' || info.mode == 'evil') {
             func = game._niceShapes;
@@ -752,22 +841,35 @@
             func = game._randomShapes();
           }
 
-          if( game.options.no_preview ) {
-            this.next = null;
-            if (_set_next_only) return null;
+          // Ensure preview queue has enough shapes
+          var desiredPreviewCount = Math.max(1, Math.min(5, game.options.previewCount || 3));
+          while (this.previewQueue.length < desiredPreviewCount) {
             shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
             if (!shape) throw new Error('No shape returned from shape function!', func);
             shape.init();
-            result = shape;
+            
+            if( typeof game._theme.complexBlocks !== 'undefined' ) {
+              if( $.isArray(game._theme.complexBlocks[shape.blockType]) ) {
+                shape.blockVariation = game._randInt(0, game._theme.complexBlocks[shape.blockType].length-1);
+              } else {
+                shape.blockVariation = null;
+              }
+            }
+            else if( typeof game._theme.blocks !== 'undefined' ) {
+              if( $.isArray(game._theme.blocks[shape.blockType]) ) {
+                shape.blockVariation = game._randInt(0, game._theme.blocks[shape.blockType].length-1);
+              } else {
+                shape.blockVariation = null;
+              }
+            }
+            
+            this.previewQueue.push(shape);
           }
-          else {
-            shape = func(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, info.mode);
-            if (!shape) throw new Error('No shape returned from shape function!', func);
-            shape.init();
-            this.next = shape;
-            if (_set_next_only) return null;
-            result = next || this.nextShape();
-          }
+
+          if (_set_next_only) return null;
+          
+          // Get the next shape from queue
+          result = this.previewQueue.shift();
 
           if( game.options.autoplay ) { //fun little hack...
             game._niceShapes(game._filled, game._checkCollisions, game._BLOCK_WIDTH, game._BLOCK_HEIGHT, 'normal', result);
@@ -934,6 +1036,10 @@
             game._drawBackground();
             game._filled.draw();
             this.cur.draw();
+            // Render preview blocks if enabled
+            if (game.options.showPreview) {
+              game._renderPreview();
+            }
           }
         },
 
@@ -1227,6 +1333,14 @@
         '</div>').hide();
       game._$scoreText = game._$score.find('.blockrain-score-num');
       game._$gameholder.append(game._$score);
+
+      // Preview
+      game._$preview = $(
+        '<div class="blockrain-preview-holder" style="position:absolute;">'+
+          '<div class="blockrain-preview-msg">Next</div>'+
+          '<div class="blockrain-preview"></div>'+
+        '</div>').hide();
+      game._$gameholder.append(game._$preview);
 
       // Create the start menu
       game._$start = $(
