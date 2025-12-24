@@ -328,7 +328,7 @@
        * Keep in mind that the blocks should keep in the same relative position when rotating,
        * to allow for custom per-block themes.
        */
-      /*            
+      /*             
        *   X      
        *   O  XOXX
        *   X      
@@ -405,6 +405,28 @@
         [2, -1,   1, -1,   1,  0,   0,  0],
         [0, -2,   0, -1,   1, -1,   1,  0],
         [0,  0,   1,  0,   1, -1,   2, -1]
+      ]
+    },
+
+    // Prop blocks (same shape as square but different type)
+    _propBlocks: {
+      petrify: [
+        [0,  0,   1,  0,   0, -1,   1, -1],
+        [1,  0,   1, -1,   0,  0,   0, -1],
+        [1, -1,   0, -1,   1,  0,   0,  0],
+        [0, -1,   0,  0,   1, -1,   1,  0]
+      ],
+      explode: [
+        [0,  0,   1,  0,   0, -1,   1, -1],
+        [1,  0,   1, -1,   0,  0,   0, -1],
+        [1, -1,   0, -1,   1,  0,   0,  0],
+        [0, -1,   0,  0,   1, -1,   1,  0]
+      ],
+      laser: [
+        [0,  0,   1,  0,   0, -1,   1, -1],
+        [1,  0,   1, -1,   0,  0,   0, -1],
+        [1, -1,   0, -1,   1,  0,   0,  0],
+        [0, -1,   0,  0,   1, -1,   1,  0]
       ]
     },
 
@@ -565,6 +587,15 @@
         },
         rightZag: function() {
           return new Shape(game, game._shapes.rightZag, false, 'rightZag');
+        },
+        petrify: function() {
+          return new Shape(game, game._propBlocks.petrify, false, 'petrify');
+        },
+        explode: function() {
+          return new Shape(game, game._propBlocks.explode, false, 'explode');
+        },
+        laser: function() {
+          return new Shape(game, game._propBlocks.laser, false, 'laser');
         }
       };
     },
@@ -576,6 +607,7 @@
 
       this._filled = {
         data: new Array(game._BLOCK_WIDTH * game._BLOCK_HEIGHT),
+        petrified: new Array(game._BLOCK_WIDTH * game._BLOCK_HEIGHT),
         score: 0,
         toClear: {},
         check: function(x, y) {
@@ -609,10 +641,13 @@
         clearAll: function() {
           delete this.data;
           this.data = new Array(game._BLOCK_WIDTH * game._BLOCK_HEIGHT);
+          delete this.petrified;
+          this.petrified = new Array(game._BLOCK_WIDTH * game._BLOCK_HEIGHT);
         },
         _popRow: function(row_to_pop) {
           for (var i=game._BLOCK_WIDTH*(row_to_pop+1) - 1; i>=0; i--) {
             this.data[i] = (i >= game._BLOCK_WIDTH ? this.data[i-game._BLOCK_WIDTH] : undefined);
+            this.petrified[i] = (i >= game._BLOCK_WIDTH ? this.petrified[i-game._BLOCK_WIDTH] : undefined);
           }
         },
         checkForClears: function() {
@@ -622,7 +657,7 @@
           for (i=0, len=this.data.length; i<len; i++) {
             mod = this.asX(i);
             if (mod == 0) count = 0;
-            if (this.data[i] && typeof this.data[i] !== 'undefined' && typeof this.data[i].blockType === 'string') {
+            if (this.data[i] && typeof this.data[i] !== 'undefined' && typeof this.data[i].blockType === 'string' && !this.petrified[i]) {
               count += 1;
             }
             if (mod == game._BLOCK_WIDTH - 1 && count == game._BLOCK_WIDTH) {
@@ -840,6 +875,54 @@
                     gameOver = true;
                   }
                   blockIndex++;
+                }
+                // Handle prop blocks
+                if (cur.blockType === 'petrify') {
+                  // Mark all blocks of this shape as petrified
+                  for (var i=0; i<cur.blocksLen; i+=2) {
+                    var px = x + blocks[i];
+                    var py = y + blocks[i+1];
+                    if (px >= 0 && px < game._BLOCK_WIDTH && py >= 0 && py < game._BLOCK_HEIGHT) {
+                      game._filled.petrified[game._filled.asIndex(px, py)] = true;
+                    }
+                  }
+                } else if (cur.blockType === 'explode') {
+                  // Explode: clear 3x3 area around each block
+                  for (var i=0; i<cur.blocksLen; i+=2) {
+                    var px = x + blocks[i];
+                    var py = y + blocks[i+1];
+                    // Clear 3x3 area around the block
+                    for (var dx = -1; dx <= 1; dx++) {
+                      for (var dy = -1; dy <= 1; dy++) {
+                        var cx = px + dx;
+                        var cy = py + dy;
+                        if (cx >= 0 && cx < game._BLOCK_WIDTH && cy >= 0 && cy < game._BLOCK_HEIGHT) {
+                          game._filled.data[game._filled.asIndex(cx, cy)] = undefined;
+                          game._filled.petrified[game._filled.asIndex(cx, cy)] = undefined;
+                        }
+                      }
+                    }
+                  }
+                } else if (cur.blockType === 'laser') {
+                  // Laser: clear entire row and column for each block
+                  for (var i=0; i<cur.blocksLen; i+=2) {
+                    var px = x + blocks[i];
+                    var py = y + blocks[i+1];
+                    // Clear entire row
+                    for (var cx = 0; cx < game._BLOCK_WIDTH; cx++) {
+                      if (cx >= 0 && cx < game._BLOCK_WIDTH && py >= 0 && py < game._BLOCK_HEIGHT) {
+                        game._filled.data[game._filled.asIndex(cx, py)] = undefined;
+                        game._filled.petrified[game._filled.asIndex(cx, py)] = undefined;
+                      }
+                    }
+                    // Clear entire column
+                    for (var cy = 0; cy < game._BLOCK_HEIGHT; cy++) {
+                      if (px >= 0 && px < game._BLOCK_WIDTH && cy >= 0 && cy < game._BLOCK_HEIGHT) {
+                        game._filled.data[game._filled.asIndex(px, cy)] = undefined;
+                        game._filled.petrified[game._filled.asIndex(px, cy)] = undefined;
+                      }
+                    }
+                  }
                 }
                 game._filled.checkForClears();
                 this.cur = this.nextShape();
@@ -1413,6 +1496,18 @@
       // Todo: The shapefuncs should be cached.
       var shapeFuncs = [];
       $.each(this._shapeFactory, function(k,v) { shapeFuncs.push(v); });
+
+      // 5% probability for prop blocks, each with equal probability
+      var rand = Math.random();
+      if (rand < 0.05) {
+        // Choose one of the three prop blocks with equal probability
+        var propIndex = Math.floor(Math.random() * 3);
+        switch(propIndex) {
+          case 0: return this._shapeFactory.petrify;
+          case 1: return this._shapeFactory.explode;
+          case 2: return this._shapeFactory.laser;
+        }
+      }
 
       return this._randChoice(shapeFuncs);
     },
