@@ -405,6 +405,25 @@
         [2, -1,   1, -1,   1,  0,   0,  0],
         [0, -2,   0, -1,   1, -1,   1,  0],
         [0,  0,   1,  0,   1, -1,   2, -1]
+      ],
+      // 道具方块
+      stone: [
+        [0,  0],
+        [0,  0],
+        [0,  0],
+        [0,  0]
+      ],
+      bomb: [
+        [0,  0],
+        [0,  0],
+        [0,  0],
+        [0,  0]
+      ],
+      laser: [
+        [0,  0],
+        [0,  0],
+        [0,  0],
+        [0,  0]
       ]
     },
 
@@ -565,6 +584,15 @@
         },
         rightZag: function() {
           return new Shape(game, game._shapes.rightZag, false, 'rightZag');
+        },
+        stone: function() {
+          return new Shape(game, game._shapes.stone, false, 'stone');
+        },
+        bomb: function() {
+          return new Shape(game, game._shapes.bomb, false, 'bomb');
+        },
+        laser: function() {
+          return new Shape(game, game._shapes.laser, false, 'laser');
         }
       };
     },
@@ -1413,6 +1441,20 @@
       // Todo: The shapefuncs should be cached.
       var shapeFuncs = [];
       $.each(this._shapeFactory, function(k,v) { shapeFuncs.push(v); });
+
+      // 5% probability to generate a prop block
+      var rand = Math.random();
+      if (rand < 0.05) {
+        // Randomly choose one of the three prop blocks
+        var propIndex = Math.floor(Math.random() * 3);
+        if (propIndex === 0) {
+          return this._shapeFactory.stone;
+        } else if (propIndex === 1) {
+          return this._shapeFactory.bomb;
+        } else {
+          return this._shapeFactory.laser;
+        }
+      }
 
       return this._randChoice(shapeFuncs);
     },
