@@ -34,6 +34,13 @@
       onLine: function(lines, scoreIncrement, score){}
     },
 
+    // Skills
+    _skills: {
+      skill1: { name: '精准爆破', uses: 2, cooldown: 0, maxUses: 2, cooldownTime: 30000 },
+      skill2: { name: '比例净化', uses: 2, cooldown: 0, maxUses: 2, cooldownTime: 30000 },
+      skill3: { name: '行内重组', uses: 2, cooldown: 0, maxUses: 2, cooldownTime: 30000 }
+    },
+
 
     /**
      * Start/Restart Game
@@ -52,6 +59,197 @@
       this.showGameOverMessage();
       this._board.gameover = true;
       this.options.onGameOver.call(this.element, this._filled.score);
+    },
+
+    // Skill Methods
+    useSkill1: function() {
+      if (this._skills.skill1.uses > 0 && this._skills.skill1.cooldown <= 0) {
+        this._skills.skill1.uses--;
+        this._skills.skill1.cooldown = this._skills.skill1.cooldownTime;
+        this._activateSkill1();
+        this._updateSkillUI();
+      }
+    },
+
+    useSkill2: function() {
+      if (this._skills.skill2.uses > 0 && this._skills.skill2.cooldown <= 0) {
+        this._skills.skill2.uses--;
+        this._skills.skill2.cooldown = this._skills.skill2.cooldownTime;
+        this._activateSkill2();
+        this._updateSkillUI();
+      }
+    },
+
+    useSkill3: function() {
+      if (this._skills.skill3.uses > 0 && this._skills.skill3.cooldown <= 0) {
+        this._skills.skill3.uses--;
+        this._skills.skill3.cooldown = this._skills.skill3.cooldownTime;
+        this._activateSkill3();
+        this._updateSkillUI();
+      }
+    },
+
+    _activateSkill1: function() {
+      // 技能1：随机消除5行方块，并触发上方剩余方块自然下落
+      var linesToRemove = [];
+      var availableLines = [];
+      
+      // 收集所有有方块的行
+      for (var y = 0; y < this._BLOCK_HEIGHT; y++) {
+        var hasBlock = false;
+        for (var x = 0; x < this._BLOCK_WIDTH; x++) {
+          if (this._filled.check(x, y)) {
+            hasBlock = true;
+            break;
+          }
+        }
+        if (hasBlock) {
+          availableLines.push(y);
+        }
+      }
+      
+      // 随机选择最多5行
+      var linesToRemoveCount = Math.min(5, availableLines.length);
+      for (var i = 0; i < linesToRemoveCount; i++) {
+        var randomIndex = this._randInt(0, availableLines.length - 1);
+        linesToRemove.push(availableLines[randomIndex]);
+        availableLines.splice(randomIndex, 1);
+      }
+      
+      // 按行号从大到小排序，确保删除行时不会影响其他行的位置
+      linesToRemove.sort(function(a, b) { return b - a; });
+      
+      // 删除选中的行
+      for (var i = 0; i < linesToRemove.length; i++) {
+        this._filled._popRow(linesToRemove[i]);
+      }
+      
+      // 重新渲染游戏
+      this._board.render(true);
+    },
+
+    _activateSkill2: function() {
+      // 技能2：随机移除全场70%的已有方块单元，但不改变剩余30%方块的位置
+      var allBlocks = [];
+      
+      // 收集所有方块
+      for (var y = 0; y < this._BLOCK_HEIGHT; y++) {
+        for (var x = 0; x < this._BLOCK_WIDTH; x++) {
+          if (this._filled.check(x, y)) {
+            allBlocks.push({x: x, y: y, block: this._filled.data[this._filled.asIndex(x, y)]});
+          }
+        }
+      }
+      
+      // 计算要保留的方块数量（30%）
+      var blocksToKeep = Math.ceil(allBlocks.length * 0.3);
+      var blocksToRemove = allBlocks.length - blocksToKeep;
+      
+      // 随机选择要移除的方块
+      for (var i = 0; i < blocksToRemove; i++) {
+        var randomIndex = this._randInt(0, allBlocks.length - 1);
+        var block = allBlocks[randomIndex];
+        this._filled.data[this._filled.asIndex(block.x, block.y)] = undefined;
+        allBlocks.splice(randomIndex, 1);
+      }
+      
+      // 重新渲染游戏
+      this._board.render(true);
+    },
+
+    _activateSkill3: function() {
+      // 技能3：对每一行内的所有方块进行重组，使行内中心线左侧的方块全部向左靠拢，中心线右侧的方块全部向右靠拢
+      for (var y = 0; y < this._BLOCK_HEIGHT; y++) {
+        var leftSide = [];
+        var rightSide = [];
+        var center = Math.floor(this._BLOCK_WIDTH / 2);
+        
+        // 收集该行的所有方块
+        for (var x = 0; x < this._BLOCK_WIDTH; x++) {
+          if (this._filled.check(x, y)) {
+            if (x < center) {
+              leftSide.push(this._filled.data[this._filled.asIndex(x, y)]);
+            } else {
+              rightSide.push(this._filled.data[this._filled.asIndex(x, y)]);
+            }
+            // 先清空当前位置
+            this._filled.data[this._filled.asIndex(x, y)] = undefined;
+          }
+        }
+        
+        // 将左侧方块向左靠拢
+        for (var i = 0; i < leftSide.length; i++) {
+          this._filled.data[this._filled.asIndex(i, y)] = leftSide[i];
+        }
+        
+        // 将右侧方块向右靠拢
+        for (var i = 0; i < rightSide.length; i++) {
+          this._filled.data[this._filled.asIndex(this._BLOCK_WIDTH - 1 - i, y)] = rightSide[i];
+        }
+      }
+      
+      // 重新渲染游戏
+      this._board.render(true);
+    },
+
+    _updateSkillUI: function() {
+      // 更新技能UI按钮的状态
+      if (this._$skill1Btn) {
+        this._$skill1Btn.toggleClass('disabled', this._skills.skill1.uses <= 0 || this._skills.skill1.cooldown > 0);
+        if (this._skills.skill1.cooldown > 0) {
+          var secondsLeft = Math.ceil(this._skills.skill1.cooldown / 1000);
+          this._$skill1Btn.find('.cooldown').text(secondsLeft);
+        } else {
+          this._$skill1Btn.find('.cooldown').text('');
+        }
+        this._$skill1Btn.find('.uses').text(this._skills.skill1.uses);
+      }
+      
+      if (this._$skill2Btn) {
+        this._$skill2Btn.toggleClass('disabled', this._skills.skill2.uses <= 0 || this._skills.skill2.cooldown > 0);
+        if (this._skills.skill2.cooldown > 0) {
+          var secondsLeft = Math.ceil(this._skills.skill2.cooldown / 1000);
+          this._$skill2Btn.find('.cooldown').text(secondsLeft);
+        } else {
+          this._$skill2Btn.find('.cooldown').text('');
+        }
+        this._$skill2Btn.find('.uses').text(this._skills.skill2.uses);
+      }
+      
+      if (this._$skill3Btn) {
+        this._$skill3Btn.toggleClass('disabled', this._skills.skill3.uses <= 0 || this._skills.skill3.cooldown > 0);
+        if (this._skills.skill3.cooldown > 0) {
+          var secondsLeft = Math.ceil(this._skills.skill3.cooldown / 1000);
+          this._$skill3Btn.find('.cooldown').text(secondsLeft);
+        } else {
+          this._$skill3Btn.find('.cooldown').text('');
+        }
+        this._$skill3Btn.find('.uses').text(this._skills.skill3.uses);
+      }
+    },
+
+    _updateSkillCooldowns: function(deltaTime) {
+      // 更新技能冷却时间
+      if (this._skills.skill1.cooldown > 0) {
+        this._skills.skill1.cooldown -= deltaTime;
+        if (this._skills.skill1.cooldown < 0) {
+          this._skills.skill1.cooldown = 0;
+        }
+      }
+      
+      if (this._skills.skill2.cooldown > 0) {
+        this._skills.skill2.cooldown -= deltaTime;
+        if (this._skills.skill2.cooldown < 0) {
+          this._skills.skill2.cooldown = 0;
+        }
+      }
+      
+      if (this._skills.skill3.cooldown > 0) {
+        this._skills.skill3.cooldown -= deltaTime;
+        if (this._skills.skill3.cooldown < 0) {
+          this._skills.skill3.cooldown = 0;
+        }
+      }
     },
 
     _doStart: function() {
@@ -807,6 +1005,10 @@
 
             this.dropCount++;
             
+            // Update skill cooldowns
+            game._updateSkillCooldowns(game._board.animateDelay);
+            game._updateSkillUI();
+            
             // Drop by delay or holding
             if( (this.dropCount >= this.dropDelay) || 
                 (game.options.autoplay) || 
@@ -1220,7 +1422,7 @@
       // Score
       game._$score = $(
         '<div class="blockrain-score-holder" style="position:absolute;">'+
-          '<div class="blockrain-score">'+
+          '<div class="blockrain-score">'+ 
             '<div class="blockrain-score-msg">'+ this.options.scoreText +'</div>'+
             '<div class="blockrain-score-num">0</div>'+
           '</div>'+
@@ -1231,7 +1433,7 @@
       // Create the start menu
       game._$start = $(
         '<div class="blockrain-start-holder" style="position:absolute;">'+
-          '<div class="blockrain-start">'+
+          '<div class="blockrain-start">'+ 
             '<div class="blockrain-start-msg">'+ this.options.playText +'</div>'+
             '<a class="blockrain-btn blockrain-start-btn">'+ this.options.playButtonText +'</a>'+
           '</div>'+
@@ -1246,7 +1448,7 @@
       // Create the game over menu
       game._$gameover = $(
         '<div class="blockrain-game-over-holder" style="position:absolute;">'+
-          '<div class="blockrain-game-over">'+
+          '<div class="blockrain-game-over">'+ 
             '<div class="blockrain-game-over-msg">'+ this.options.gameOverText +'</div>'+
             '<a class="blockrain-btn blockrain-game-over-btn">'+ this.options.restartButtonText +'</a>'+
           '</div>'+
@@ -1256,6 +1458,40 @@
         game.restart();
       });
       game._$gameholder.append(game._$gameover);
+
+      // Create Skill Buttons
+      game._$skill1Btn = $(
+        '<div class="blockrain-skill-btn blockrain-skill-btn-1" style="position:absolute; top: 20px; right: 20px; width: 60px; height: 60px; background: #ff6b6b; border-radius: 50%; cursor: pointer; text-align: center; line-height: 60px; color: white; font-weight: bold; font-size: 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 10;">'+ 
+          '<div class="skill-icon">💣</div>'+
+          '<div class="cooldown" style="position: absolute; top: 0; right: 0; background: rgba(0,0,0,0.5); border-radius: 50%; width: 24px; height: 24px; line-height: 24px; font-size: 12px;"></div>'+
+          '<div class="uses" style="position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.5); border-radius: 50%; width: 24px; height: 24px; line-height: 24px; font-size: 12px;"></div>'+
+        '</div>').click(function() {
+          game.useSkill1();
+        });
+      game._$gameholder.append(game._$skill1Btn);
+
+      game._$skill2Btn = $(
+        '<div class="blockrain-skill-btn blockrain-skill-btn-2" style="position:absolute; top: 100px; right: 20px; width: 60px; height: 60px; background: #4ecdc4; border-radius: 50%; cursor: pointer; text-align: center; line-height: 60px; color: white; font-weight: bold; font-size: 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 10;">'+ 
+          '<div class="skill-icon">🧹</div>'+
+          '<div class="cooldown" style="position: absolute; top: 0; right: 0; background: rgba(0,0,0,0.5); border-radius: 50%; width: 24px; height: 24px; line-height: 24px; font-size: 12px;"></div>'+
+          '<div class="uses" style="position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.5); border-radius: 50%; width: 24px; height: 24px; line-height: 24px; font-size: 12px;"></div>'+
+        '</div>').click(function() {
+          game.useSkill2();
+        });
+      game._$gameholder.append(game._$skill2Btn);
+
+      game._$skill3Btn = $(
+        '<div class="blockrain-skill-btn blockrain-skill-btn-3" style="position:absolute; top: 180px; right: 20px; width: 60px; height: 60px; background: #45b7d1; border-radius: 50%; cursor: pointer; text-align: center; line-height: 60px; color: white; font-weight: bold; font-size: 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 10;">'+ 
+          '<div class="skill-icon">🔄</div>'+
+          '<div class="cooldown" style="position: absolute; top: 0; right: 0; background: rgba(0,0,0,0.5); border-radius: 50%; width: 24px; height: 24px; line-height: 24px; font-size: 12px;"></div>'+
+          '<div class="uses" style="position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.5); border-radius: 50%; width: 24px; height: 24px; line-height: 24px; font-size: 12px;"></div>'+
+        '</div>').click(function() {
+          game.useSkill3();
+        });
+      game._$gameholder.append(game._$skill3Btn);
+
+      // Initialize skill UI
+      game._updateSkillUI();
 
       this._createControls();
     },
@@ -1476,6 +1712,9 @@
           case 38: /*up*/     game._board.cur.rotate('right'); break;
           case 88: /*x*/      game._board.cur.rotate('right'); break;
           case 90: /*z*/      game._board.cur.rotate('left'); break;
+          case 49: /*1*/      game.useSkill1(); break;
+          case 50: /*2*/      game.useSkill2(); break;
+          case 51: /*3*/      game.useSkill3(); break;
           default: caught = false;
         }
         if (caught) evt.preventDefault();
