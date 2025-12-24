@@ -41,7 +41,10 @@ window.BlockrainThemes = {
       rightHook:'#f5821f',
       leftHook: '#42c6f0',
       rightZag: '#4bd838',
-      leftZag:  '#fa1e1e'
+      leftZag:  '#fa1e1e',
+      stone:    '#888888', // 灰色石质纹理
+      bomb:     '#ff0000', // 红色爆炸图标
+      laser:    '#00ffff'  // 蓝色激光图标
     }
   },
   'retro': {
