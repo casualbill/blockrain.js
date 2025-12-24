@@ -161,3 +161,100 @@
   margin-bottom: 30px;
 }
 
+/* Skills */
+.blockrain-skills-holder {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  z-index: 10;
+}
+
+.blockrain-skill-btn {
+  position: relative;
+  display: inline-block;
+  background: none;
+  color: #ffffff;
+  text-decoration: none;
+  border: 2px solid #ffffff;
+  padding: 10px 20px;
+  font-size: 14px;
+  text-align: center;
+  cursor: default;
+  min-width: 120px;
+}
+
+.blockrain-skill-btn::before {
+  position: absolute;
+  content: "";
+  top: 100%;
+  left: 0px;
+  bottom: 0px;
+  right: 0px;
+  border: 2px solid #ffffff;
+  border-top: none;
+  border-right: none;
+  transition: all 0.2s ease;
+}
+
+.blockrain-skill-btn::after {
+  position: absolute;
+  content: "";
+  top: 0px;
+  left: 100%;
+  bottom: 0px;
+  right: 0px;
+  border: 2px solid #ffffff;
+  border-left: none;
+  border-bottom: none;
+  transition: all 0.2s ease;
+}
+
+.blockrain-skill-btn:hover::before {
+  left: 5px;
+  bottom: -8px;
+  right: -8px;
+}
+
+.blockrain-skill-btn:hover::after {
+  top: 5px;
+  bottom: -8px;
+  right: -8px;
+}
+
+.blockrain-skill-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.blockrain-skill-btn.disabled:hover::before,
+.blockrain-skill-btn.disabled:hover::after {
+  left: 0px;
+  top: 0px;
+  bottom: 0px;
+  right: 0px;
+}
+
+.blockrain-skill-icon {
+  font-size: 20px;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.blockrain-skill-name {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.blockrain-skill-count {
+  display: inline-block;
+  background: rgba(255,255,255,0.2);
+  padding: 2px 8px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: bold;
+}
+

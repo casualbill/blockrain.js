@@ -224,6 +224,9 @@
       this._SetupInfo();
       this._SetupBoard();
 
+      // 初始化技能状态
+      this._setupSkills();
+
       this._info.init();
       this._board.init();
 
@@ -1257,6 +1260,45 @@
       });
       game._$gameholder.append(game._$gameover);
 
+      // Create skill buttons
+      game._$skills = $(
+        '<div class="blockrain-skills-holder" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:10px;">'+
+          '<a class="blockrain-btn blockrain-skill-btn blockrain-skill-1" data-skill="1">'+
+            '<span class="blockrain-skill-icon">💥</span>'+
+            '<span class="blockrain-skill-name">精准爆破</span>'+
+            '<span class="blockrain-skill-count">2</span>'+
+          '</a>'+
+          '<a class="blockrain-btn blockrain-skill-btn blockrain-skill-2" data-skill="2">'+
+            '<span class="blockrain-skill-icon">🧹</span>'+
+            '<span class="blockrain-skill-name">比例净化</span>'+
+            '<span class="blockrain-skill-count">2</span>'+
+          '</a>'+
+          '<a class="blockrain-btn blockrain-skill-btn blockrain-skill-3" data-skill="3">'+
+            '<span class="blockrain-skill-icon">🔄</span>'+
+            '<span class="blockrain-skill-name">行内重组</span>'+
+            '<span class="blockrain-skill-count">2</span>'+
+          '</a>'+
+        '</div>').hide();
+      game._$gameholder.append(game._$skills);
+
+      // Skill button click handlers
+      game._$skills.find('.blockrain-skill-btn').click(function(event){
+        event.preventDefault();
+        var skillNum = $(this).data('skill');
+        switch(skillNum) {
+          case 1:
+            game._useSkill1();
+            break;
+          case 2:
+            game._useSkill2();
+            break;
+          case 3:
+            game._useSkill3();
+            break;
+        }
+        game._updateSkillButtons();
+      });
+
       this._createControls();
     },
 
@@ -1476,6 +1518,9 @@
           case 38: /*up*/     game._board.cur.rotate('right'); break;
           case 88: /*x*/      game._board.cur.rotate('right'); break;
           case 90: /*z*/      game._board.cur.rotate('left'); break;
+          case 49: /*1*/      game._useSkill1(); game._updateSkillButtons(); caught = true; break;
+          case 50: /*2*/      game._useSkill2(); game._updateSkillButtons(); caught = true; break;
+          case 51: /*3*/      game._useSkill3(); game._updateSkillButtons(); caught = true; break;
           default: caught = false;
         }
         if (caught) evt.preventDefault();
@@ -1611,6 +1656,183 @@
         game._$touchDrop.hide();
       }
 
+    },
+
+    // 技能系统初始化
+    _setupSkills: function() {
+      this._skills = {
+        skill1: {
+          name: '精准爆破',
+          count: 2,
+          cooldown: 30,
+          lastUsed: 0
+        },
+        skill2: {
+          name: '比例净化',
+          count: 2,
+          cooldown: 30,
+          lastUsed: 0
+        },
+        skill3: {
+          name: '行内重组',
+          count: 2,
+          cooldown: 30,
+          lastUsed: 0
+        }
+      };
+    },
+
+    // 技能使用检测
+    _canUseSkill: function(skillKey) {
+      var skill = this._skills[skillKey];
+      if (skill.count <= 0) return false;
+      var now = Date.now();
+      if (now - skill.lastUsed < skill.cooldown * 1000) return false;
+      return true;
+    },
+
+    // 技能使用后更新状态
+    _updateSkillStatus: function(skillKey) {
+      var skill = this._skills[skillKey];
+      skill.count--;
+      skill.lastUsed = Date.now();
+    },
+
+    // 技能1：精准爆破 - 随机消除5行方块
+    _useSkill1: function() {
+      if (!this._canUseSkill('skill1')) return;
+      
+      var rows = [];
+      for (var i = 0; i < 5; i++) {
+        var randomRow = this._randInt(0, this._BLOCK_HEIGHT - 1);
+        rows.push(randomRow);
+      }
+      
+      // 消除选中的行
+      rows.sort(function(a, b) { return b - a; }); // 从下往上消除
+      for (var i = 0; i < rows.length; i++) {
+        this._filled._popRow(rows[i]);
+      }
+      
+      this._updateSkillStatus('skill1');
+      this._board.renderChanged = true;
+    },
+
+    // 技能2：比例净化 - 随机移除全场70%的方块
+    _useSkill2: function() {
+      if (!this._canUseSkill('skill2')) return;
+      
+      var filledBlocks = [];
+      for (var i = 0; i < this._filled.data.length; i++) {
+        if (this._filled.data[i]) {
+          filledBlocks.push(i);
+        }
+      }
+      
+      // 计算要保留的方块数量（30%）
+      var keepCount = Math.ceil(filledBlocks.length * 0.3);
+      
+      // 随机选择要保留的方块
+      var keptIndices = [];
+      for (var i = 0; i < keepCount && filledBlocks.length > 0; i++) {
+        var randomIndex = this._randInt(0, filledBlocks.length - 1);
+        keptIndices.push(filledBlocks[randomIndex]);
+        filledBlocks.splice(randomIndex, 1);
+      }
+      
+      // 清除所有方块，只保留选中的
+      this._filled.clearAll();
+      for (var i = 0; i < keptIndices.length; i++) {
+        var originalBlock = this._filled.data[keptIndices[i]];
+        if (originalBlock) {
+          var x = this._filled.asX(keptIndices[i]);
+          var y = this._filled.asY(keptIndices[i]);
+          this._filled.add(x, y, originalBlock.blockType, originalBlock.blockVariation, originalBlock.blockIndex, originalBlock.blockOrientation);
+        }
+      }
+      
+      this._updateSkillStatus('skill2');
+      this._board.renderChanged = true;
+    },
+
+    // 技能3：行内重组 - 每行方块向两侧靠拢
+    _useSkill3: function() {
+      if (!this._canUseSkill('skill3')) return;
+      
+      var newData = new Array(this._BLOCK_WIDTH * this._BLOCK_HEIGHT);
+      
+      for (var y = 0; y < this._BLOCK_HEIGHT; y++) {
+        var rowBlocks = [];
+        for (var x = 0; x < this._BLOCK_WIDTH; x++) {
+          var index = this._filled.asIndex(x, y);
+          if (this._filled.data[index]) {
+            rowBlocks.push(this._filled.data[index]);
+          }
+        }
+        
+        // 计算中心线
+        var centerX = Math.floor(this._BLOCK_WIDTH / 2);
+        
+        // 分配方块到两侧
+        var leftCount = Math.floor(rowBlocks.length / 2);
+        var rightCount = rowBlocks.length - leftCount;
+        
+        // 左侧方块
+        for (var i = 0; i < leftCount; i++) {
+          var x = i;
+          var index = this._filled.asIndex(x, y);
+          newData[index] = rowBlocks[i];
+        }
+        
+        // 右侧方块
+        for (var i = 0; i < rightCount; i++) {
+          var x = this._BLOCK_WIDTH - 1 - i;
+          var index = this._filled.asIndex(x, y);
+          newData[index] = rowBlocks[leftCount + i];
+        }
+      }
+      
+      this._filled.data = newData;
+      this._updateSkillStatus('skill3');
+      this._board.renderChanged = true;
+    },
+
+    // 更新技能按钮显示状态
+    _updateSkillButtons: function() {
+      var game = this;
+      
+      // 更新技能1按钮
+      var skill1 = this._skills.skill1;
+      var $skill1Btn = this._$skills.find('.blockrain-skill-1');
+      $skill1Btn.find('.blockrain-skill-count').text(skill1.count);
+      
+      if (skill1.count <= 0 || !this._canUseSkill('skill1')) {
+        $skill1Btn.addClass('disabled');
+      } else {
+        $skill1Btn.removeClass('disabled');
+      }
+      
+      // 更新技能2按钮
+      var skill2 = this._skills.skill2;
+      var $skill2Btn = this._$skills.find('.blockrain-skill-2');
+      $skill2Btn.find('.blockrain-skill-count').text(skill2.count);
+      
+      if (skill2.count <= 0 || !this._canUseSkill('skill2')) {
+        $skill2Btn.addClass('disabled');
+      } else {
+        $skill2Btn.removeClass('disabled');
+      }
+      
+      // 更新技能3按钮
+      var skill3 = this._skills.skill3;
+      var $skill3Btn = this._$skills.find('.blockrain-skill-3');
+      $skill3Btn.find('.blockrain-skill-count').text(skill3.count);
+      
+      if (skill3.count <= 0 || !this._canUseSkill('skill3')) {
+        $skill3Btn.addClass('disabled');
+      } else {
+        $skill3Btn.removeClass('disabled');
+      }
     }
 
   });
