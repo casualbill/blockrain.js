@@ -52,6 +52,10 @@
       this.showGameOverMessage();
       this._board.gameover = true;
       this.options.onGameOver.call(this.element, this._filled.score);
+      // Stop recording when game is over
+      if (this._recording) {
+        this.stopRecording();
+      }
     },
 
     _doStart: function() {
@@ -194,11 +198,19 @@
     _$gameover: null,
     _$score: null,
     _$scoreText: null,
-
+    _$recordStatus: null,
+    _$recordButton: null,
+    _$exportButton: null,
 
     // Canvas
     _canvas: null,
     _ctx: null,
+
+    // Recording variables
+    _recording: false,
+    _recorder: null,
+    _recordedChunks: [],
+    _recordStartTime: null,
 
 
     // Initialization
@@ -210,6 +222,7 @@
 
       this._createHolder();
       this._createUI();
+      this._createRecordingUI();
 
       this._refreshBlockSizes();
 
@@ -240,6 +253,9 @@
         this._setupControls(true);
         this._setupTouchControls(false);
       }
+
+      // Initialize recording functionality
+      this._initRecording();
 
     },
 
@@ -1271,6 +1287,267 @@
       game._$touchRotateLeft = $('<a class="blockrain-touch blockrain-touch-rotate-left" />').appendTo(game._$gameholder);
       game._$touchDrop = $('<a class="blockrain-touch blockrain-touch-drop" />').appendTo(game._$gameholder);
 
+    },
+
+    _createRecordingUI: function() {
+      var game = this;
+
+      // Create recording status indicator
+      game._$recordStatus = $('<div class="blockrain-record-status" style="position:absolute; top:10px; right:10px; display:none;"><span class="record-dot" style="width:12px; height:12px; background-color:#ff0000; border-radius:50%; display:inline-block; margin-right:5px; animation: blink 1s infinite;"></span><span class="record-text" style="color:#ff0000; font-family:Arial, sans-serif; font-size:12px;">正在录制</span></div>');
+      game._$gameholder.append(game._$recordStatus);
+
+      // Create recording button
+      game._$recordButton = $('<button class="blockrain-record-btn" style="position:absolute; top:10px; left:10px; padding:5px 10px; background-color:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; font-family:Arial, sans-serif; font-size:12px;">开始录制</button>');
+      game._$gameholder.append(game._$recordButton);
+
+      // Create format and codec selection
+      game._$formatSelect = $('<select class="blockrain-format-select" style="position:absolute; top:10px; left:100px; padding:5px 10px; border:1px solid #ccc; border-radius:4px; font-family:Arial, sans-serif; font-size:12px;"><option value="webm">WebM</option><option value="mp4">MP4</option><option value="mkv">MKV</option></select>');
+      game._$gameholder.append(game._$formatSelect);
+
+      game._$codecSelect = $('<select class="blockrain-codec-select" style="position:absolute; top:10px; left:180px; padding:5px 10px; border:1px solid #ccc; border-radius:4px; font-family:Arial, sans-serif; font-size:12px;"><option value="vp9">VP9 (WebM)</option><option value="vp8">VP8 (WebM)</option><option value="h264">H.264 (MP4/MKV)</option><option value="h265">H.265 (MP4/MKV)</option></select>');
+      game._$gameholder.append(game._$codecSelect);
+
+      // Create export button
+      game._$exportButton = $('<button class="blockrain-export-btn" style="position:absolute; top:10px; left:260px; padding:5px 10px; background-color:#2196F3; color:white; border:none; border-radius:4px; cursor:pointer; font-family:Arial, sans-serif; font-size:12px; display:none;">导出视频</button>');
+      game._$gameholder.append(game._$exportButton);
+
+      // Add click event handlers
+      game._$recordButton.click(function() {
+        if (game._recording) {
+          game.stopRecording();
+        } else {
+          game.startRecording();
+        }
+      });
+
+      game._$exportButton.click(function() {
+        game.exportRecording();
+      });
+
+      // Update codec options based on format selection
+      game._$formatSelect.change(function() {
+        var format = $(this).val();
+        var $codecSelect = game._$codecSelect;
+        
+        $codecSelect.empty();
+        
+        if (format === 'webm') {
+          $codecSelect.append('<option value="vp9">VP9</option>');
+          $codecSelect.append('<option value="vp8">VP8</option>');
+        } else if (format === 'mp4' || format === 'mkv') {
+          $codecSelect.append('<option value="h264">H.264</option>');
+          $codecSelect.append('<option value="h265">H.265</option>');
+        }
+      });
+
+      // Add CSS animation for blink effect
+      var style = document.createElement('style');
+      style.textContent = '@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }';
+      document.head.appendChild(style);
+    },
+
+    _initRecording: function() {
+      var game = this;
+
+      // Check if browser supports MediaRecorder
+      if (!window.MediaRecorder) {
+        console.error('MediaRecorder API is not supported in this browser.');
+        game._$recordButton.hide();
+        return;
+      }
+
+      // Create a stream from the canvas
+      var stream = game._canvas.captureStream(60); // 60fps
+
+      // Function to create MediaRecorder with specified MIME type
+      var createMediaRecorder = function(mimeType) {
+        try {
+          return new MediaRecorder(stream, { mimeType: mimeType });
+        } catch (e) {
+          console.error('MediaRecorder not supported with MIME type:', mimeType, e);
+          return null;
+        }
+      };
+
+      // Function to handle format and codec selection
+      var updateMediaRecorder = function() {
+        var format = game._$formatSelect.val();
+        var codec = game._$codecSelect.val();
+        var recorder = null;
+
+        // Try multiple MIME types for each format
+        if (format === 'webm') {
+          // Try WebM formats
+          var webmMimeTypes = [
+            'video/webm; codecs=' + codec,
+            'video/webm; codecs=vp9',
+            'video/webm; codecs=vp8',
+            'video/webm'
+          ];
+          
+          for (var i = 0; i < webmMimeTypes.length; i++) {
+            recorder = createMediaRecorder(webmMimeTypes[i]);
+            if (recorder) {
+              console.log('MediaRecorder created with WebM MIME type:', webmMimeTypes[i]);
+              break;
+            }
+          }
+        } else if (format === 'mp4') {
+          // Try MP4 formats - note that many browsers don't support MP4 recording
+          var mp4MimeTypes = [
+            'video/mp4; codecs=' + codec,
+            'video/mp4; codecs=h264',
+            'video/mp4; codecs=avc1',
+            'video/mp4'
+          ];
+          
+          for (var i = 0; i < mp4MimeTypes.length; i++) {
+            recorder = createMediaRecorder(mp4MimeTypes[i]);
+            if (recorder) {
+              console.log('MediaRecorder created with MP4 MIME type:', mp4MimeTypes[i]);
+              break;
+            }
+          }
+          
+          // If MP4 still not supported, fall back to WebM
+          if (!recorder) {
+            console.warn('MP4 recording not supported in this browser, falling back to WebM');
+            var webmMimeTypes = ['video/webm; codecs=vp9', 'video/webm; codecs=vp8', 'video/webm'];
+            for (var i = 0; i < webmMimeTypes.length; i++) {
+              recorder = createMediaRecorder(webmMimeTypes[i]);
+              if (recorder) {
+                console.log('Fallback to WebM MIME type:', webmMimeTypes[i]);
+                break;
+              }
+            }
+          }
+        } else if (format === 'mkv') {
+          // Try MKV formats
+          var mkvMimeTypes = [
+            'video/x-matroska; codecs=' + codec,
+            'video/x-matroska; codecs=h264',
+            'video/x-matroska'
+          ];
+          
+          for (var i = 0; i < mkvMimeTypes.length; i++) {
+            recorder = createMediaRecorder(mkvMimeTypes[i]);
+            if (recorder) {
+              console.log('MediaRecorder created with MKV MIME type:', mkvMimeTypes[i]);
+              break;
+            }
+          }
+          
+          // If MKV not supported, fall back to WebM
+          if (!recorder) {
+            console.warn('MKV recording not supported in this browser, falling back to WebM');
+            var webmMimeTypes = ['video/webm; codecs=vp9', 'video/webm; codecs=vp8', 'video/webm'];
+            for (var i = 0; i < webmMimeTypes.length; i++) {
+              recorder = createMediaRecorder(webmMimeTypes[i]);
+              if (recorder) {
+                console.log('Fallback to WebM MIME type:', webmMimeTypes[i]);
+                break;
+              }
+            }
+          }
+        } else {
+          // Default to WebM
+          var webmMimeTypes = ['video/webm; codecs=vp9', 'video/webm; codecs=vp8', 'video/webm'];
+          for (var i = 0; i < webmMimeTypes.length; i++) {
+            recorder = createMediaRecorder(webmMimeTypes[i]);
+            if (recorder) {
+              console.log('Default to WebM MIME type:', webmMimeTypes[i]);
+              break;
+            }
+          }
+        }
+
+        // Check if any MediaRecorder was created
+        if (recorder) {
+          game._recorder = recorder;
+          
+          // Set up recorder event handlers
+          game._recorder.ondataavailable = function(e) {
+            if (e.data.size > 0) {
+              game._recordedChunks.push(e.data);
+            }
+          };
+
+          game._recorder.onstop = function() {
+            game._$recordStatus.hide();
+            game._$recordButton.text('开始录制').css('background-color', '#4CAF50');
+            game._$exportButton.show();
+          };
+          
+          // Show recording button if it was hidden
+          game._$recordButton.show();
+        } else {
+          console.error('No supported MIME type found for any format');
+          game._$recordButton.hide();
+          return;
+        }
+      };
+
+      // Initialize MediaRecorder with default settings
+      updateMediaRecorder();
+
+      // Update MediaRecorder when format or codec changes
+      game._$formatSelect.change(updateMediaRecorder);
+      game._$codecSelect.change(updateMediaRecorder);
+    },
+
+    startRecording: function() {
+      var game = this;
+      if (game._recording) return;
+
+      game._recording = true;
+      game._recordedChunks = [];
+      game._recordStartTime = Date.now();
+
+      // Update UI
+      game._$recordStatus.show();
+      game._$recordButton.text('停止录制').css('background-color', '#f44336');
+      game._$exportButton.hide();
+
+      // Start recording
+      game._recorder.start();
+    },
+
+    stopRecording: function() {
+      var game = this;
+      if (!game._recording) return;
+
+      game._recording = false;
+
+      // Stop recording
+      game._recorder.stop();
+    },
+
+    exportRecording: function() {
+      var game = this;
+      if (game._recordedChunks.length === 0) {
+        alert('没有录制的视频内容');
+        return;
+      }
+
+      // Create blob from recorded chunks
+      var blob = new Blob(game._recordedChunks, { type: game._recorder.mimeType });
+
+      // Generate filename with timestamp and score
+      var timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      var score = game._filled.score;
+      var format = game._$formatSelect.val();
+      var extension = format === 'webm' ? 'webm' : (format === 'mp4' ? 'mp4' : 'mkv');
+      var filename = `blockrain-recording-${timestamp}-score-${score}.${extension}`;
+
+      // Create download link
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     },
 
 
